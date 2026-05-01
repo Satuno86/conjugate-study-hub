@@ -413,6 +413,8 @@ header p { font-size:0.9rem; opacity:0.85; }
         <option value="6">Biomechanics and Equipment</option>
         <option value="7">Special Populations</option>
         <option value="8">Scenario-Based Application</option>
+        <option value="9">Special Strengths Development</option>
+        <option value="10">Prilepin's Table &amp; Circa-Max</option>
       </select>
       <button class="btn btn-primary" type="button" id="fc-start-btn" style="margin-top:0.75rem;width:100%">Start Flashcards</button>
     </div>
@@ -425,7 +427,7 @@ header p { font-size:0.9rem; opacity:0.85; }
   <div class="mode-card" role="button" tabindex="0" id="ft-mode-btn">
     <span class="mode-icon">&#x1F4DD;</span>
     <h3>Full Practice Test</h3>
-    <p>All 85 questions. Graded with section breakdown. The real deal.</p>
+    <p>All 105 questions. Graded with section breakdown. The real deal.</p>
   </div>
   <div class="mode-card" role="button" tabindex="0" id="review-mode-btn" style="display:none">
     <span class="mode-icon">&#x1F504;</span>
@@ -433,11 +435,17 @@ header p { font-size:0.9rem; opacity:0.85; }
     <p>Drill the questions you've gotten wrong. Targeted practice.</p>
     <span class="mode-badge" id="missedCount">0 to review</span>
   </div>
+  <div class="mode-card" role="button" tabindex="0" id="survey-mode-btn">
+    <span class="mode-icon">&#x1F4AC;</span>
+    <h3>Feedback</h3>
+    <p>Help us make this app better! Flag confusing questions, suggest topics, or share what's working.</p>
+  </div>
 </div>
 <div id="flashcard-panel" class="mode-panel"></div>
 <div id="quiz-panel" class="mode-panel"></div>
 <div id="test-panel" class="mode-panel"></div>
 <div id="review-panel" class="mode-panel"></div>
+<div id="survey-panel" class="mode-panel"></div>
 
 <script>
 // =======================================
@@ -451,7 +459,9 @@ var SECTIONS = {
   5: "Programming and Template Design",
   6: "Biomechanics and Equipment",
   7: "Special Populations",
-  8: "Scenario-Based Application"
+  8: "Scenario-Based Application",
+  9: "Special Strengths Development",
+  10: "Prilepin's Table & Circa-Max"
 };
 
 var QUESTIONS = [
@@ -547,7 +557,29 @@ var QUESTIONS = [
   {id:82,s:8,type:"mc",q:"During week 3 of a DE lower wave (85% week), an athlete reports the bar feeling heavy and slow. What is the appropriate coaching response?",opts:["Push through it since it's the last week of the wave","Recognize that 85% represents the TOTAL load including bands/chains (bar weight is only 50-60%), verify the setup is correct, and if bar speed is genuinely compromised, reduce load and reset the wave","Skip DE work entirely that week","Increase the weight to force adaptation"],ans:1,exp:"The 75/80/85% wave refers to total load at lockout (bar + accommodating resistance). If speed drops at week 3, verify band/chain setup. If truly slow, the athlete may need a lighter wave or the percentages need recalculating."},
   {id:83,s:8,type:"mc",q:"Which of the following best describes the 'conjugate' in Conjugate Method?",opts:["Training only one quality at a time in sequential blocks","The simultaneous (concurrent) development of multiple strength qualities (maximal strength, speed-strength, strength endurance) within the same training week","A specific barbell exercise","Training conjugate (paired) muscle groups in the same session"],ans:1,exp:"'Conjugate' means joined together. The method develops max strength (ME), speed-strength (DE), and muscular endurance/hypertrophy (RE) concurrently, not in separate phases."},
   {id:84,s:8,type:"mc",q:"Louie Simmons credited which sports science tradition as the foundation for the Conjugate Method?",opts:["Scandinavian endurance training methodology","Soviet/Russian sports science, particularly the work of Verkhoshansky, Zatsiorsky, and Vorobyev","Traditional Chinese martial arts periodization","American football strength coaching from the 1950s"],ans:1,exp:"Louie extensively studied Soviet sports science literature. Zatsiorsky's classification of strength methods, Verkhoshansky's work on special strength, and Vorobyev's research on Olympic lifting formed the theoretical backbone."},
-  {id:85,s:8,type:"mc",q:"What is the single most important principle that distinguishes the Conjugate Method from traditional linear or block periodization?",opts:["Using specialty barbells","Training four days per week","The concurrent development of all strength qualities year-round, eliminating the need for extended phases where one quality is trained at the expense of others","Using box squats"],ans:2,exp:"The core distinction is concurrent training. Linear/block periodization develops qualities sequentially (hypertrophy block, strength block, peaking block), which means some qualities detrain. Conjugate develops everything simultaneously."}
+  {id:85,s:8,type:"mc",q:"What is the single most important principle that distinguishes the Conjugate Method from traditional linear or block periodization?",opts:["Using specialty barbells","Training four days per week","The concurrent development of all strength qualities year-round, eliminating the need for extended phases where one quality is trained at the expense of others","Using box squats"],ans:2,exp:"The core distinction is concurrent training. Linear/block periodization develops qualities sequentially (hypertrophy block, strength block, peaking block), which means some qualities detrain. Conjugate develops everything simultaneously."},
+  // SECTION 9: SPECIAL STRENGTHS DEVELOPMENT
+  {id:86,s:9,type:"mc",q:"What is 'explosive strength' and at what intensity is it typically trained?",opts:["Maximum force regardless of speed, trained at 90%+","Force produced at high velocity, trained at 30-40% of max or with jumping exercises","Sustained force over long duration, trained at 50-60%","Isometric force production, trained at 100%"],ans:1,exp:"Explosive strength is trained at high velocity using weights between 30-40% of max or jumping exercises. Accommodating resistance with bands creates maximal tension throughout the full ROM."},
+  {id:87,s:9,type:"mc",q:"What is 'speed-strength' and what total intensity range is it trained at?",opts:["Maximum speed with no load","Fast movement with significant resistance, trained at 75-85% total intensity","Slow grinding reps at 95%+","Bodyweight plyometrics only"],ans:1,exp:"Speed-strength is trained at 75-85% total intensity, emphasizing fast movement with strength. A typical wave uses 50/55/60% bar weight plus ~33% band tension for total intensities of 83/88/93%."},
+  {id:88,s:9,type:"mc",q:"What is 'strength-speed' (slow strength) and how does it differ from speed-strength?",opts:["They are the same thing","Strength-speed uses lighter loads and faster bar speeds","Strength-speed is trained at slow velocity where band tension exceeds barbell weight, with bar speed around 0.4 m/s","Strength-speed only uses chains, never bands"],ans:2,exp:"Strength-speed (slow strength) is trained at slow velocity (~0.4 m/s) using combined resistance where band tension exceeds barbell weight. Example: 700 lbs band tension + 510 lbs barbell = 1,210 lbs at lockout."},
+  {id:89,s:9,type:"tf",q:"In the Conjugate system, 'starting strength' refers to the ability to generate force from a dead stop without any stretch reflex or momentum.",ans:true,exp:"Starting strength is the ability to produce force from a static position. Box squats develop this quality because the pause on the box eliminates the stretch-shortening cycle, requiring force production from a dead stop."},
+  {id:90,s:9,type:"mc",q:"What minimum bar speed should be maintained during explosive strength (dynamic effort) training?",opts:["0.3-0.4 m/s","0.5-0.7 m/s","1.0-1.2 m/s","2.0+ m/s"],ans:2,exp:"Explosive strength training requires bar speed of at least 1.0-1.2 m/s. If bar speed drops below this threshold, the weight is too heavy for speed work and should be reduced."},
+  {id:91,s:9,type:"mc",q:"How does accommodating resistance (bands) create an 'overspeed eccentric effect'?",opts:["The bands slow down the eccentric phase for more time under tension","The bands pull the bar down faster during the eccentric, increasing the stretch reflex and requiring greater force to reverse direction","The bands eliminate the eccentric phase entirely","The bands reduce the load during the eccentric"],ans:1,exp:"Bands pull the bar down faster on the eccentric phase, creating an overspeed eccentric effect. This produces a greater stretch reflex and enhanced muscle action reversal at the bottom of the lift."},
+  {id:92,s:9,type:"mc",q:"What are the three primary special strengths that Westside Barbell identifies and trains?",opts:["Endurance, flexibility, and coordination","Explosive strength, speed-strength, and strength-speed","Concentric, eccentric, and isometric strength","Starting strength, reactive strength, and absolute strength"],ans:1,exp:"The three primary special strengths are: explosive strength (high velocity, 30-40%), speed-strength (fast with load, 75-85% total), and strength-speed/slow strength (slow velocity, band tension exceeds bar weight)."},
+  {id:93,s:9,type:"tf",q:"In a Westside explosive strength wave, the number of total lifts decreases as band tension increases across the three-week wave.",ans:true,exp:"As band tension increases across weeks, volume decreases: Week 1 = 48 lifts with 210 lbs tension, Week 2 = 48 lifts with 250 lbs tension, Week 3 = 36 lifts with 320 lbs tension. Higher intensity demands lower volume."},
+  {id:94,s:9,type:"mc",q:"What percentage of total training volume at Westside Barbell comes from 'small' special exercises rather than the main competition lifts?",opts:["About 20%","About 50%","About 80%","About 95%"],ans:2,exp:"Small special exercises comprise approximately 80% of training volume on both Dynamic Effort and Max Effort days. The main competition lifts make up only about 20% of total training work."},
+  {id:95,s:9,type:"mc",q:"Which Soviet sports scientist was instrumental in establishing the optimal number of repetitions and sets at specific intensity zones, forming the basis for DE programming?",opts:["Yuri Verkhoshansky","A.S. Prilepin","Vladimir Zatsiorsky","Ivan Abadjiev"],ans:1,exp:"A.S. Prilepin studied Soviet Olympic weightlifters and established optimal set/rep ranges at various intensity zones. His research directly informs Westside's speed work programming."},
+  // SECTION 10: PRILEPIN'S TABLE & CIRCA-MAX
+  {id:96,s:10,type:"mc",q:"According to Prilepin's Table, what is the optimal number of reps per set at 70-80% intensity?",opts:["1-2 reps","3-6 reps","8-10 reps","12-15 reps"],ans:1,exp:"Prilepin's Table prescribes 3-6 reps per set at 70-80% intensity, with an optimal total of 18 reps and a range of 12-24 total reps in a session at that intensity."},
+  {id:97,s:10,type:"mc",q:"According to Prilepin's Table, what is the optimal total number of lifts at 90%+ intensity?",opts:["4 lifts","7 lifts","10 lifts","15 lifts"],ans:1,exp:"At 90%+ intensity, Prilepin's Table prescribes 1-2 reps per set, with an optimal total of 7 lifts and a range of 4-10 total lifts per session."},
+  {id:98,s:10,type:"mc",q:"What is the 'circa-max' phase in Conjugate programming and when is it used?",opts:["A hypertrophy phase used in the off-season","A deload week every 4th week","A peaking phase scheduled 14-28 days before competition using 90-97% intensity with accommodating resistance","A speed phase using 40% bar weight"],ans:2,exp:"The circa-max phase is a competition preparation method scheduled 14-28 days before a meet. It uses 90-97% total intensity (bar weight plus heavy bands/chains) to peak strength without grinding under maximal straight weight."},
+  {id:99,s:10,type:"mc",q:"In a circa-max peaking cycle, what is the recommended loading structure in the final three weeks before competition?",opts:["Same weight all three weeks","Week 3 out: top circa-max weight, Week 2 out: current top weight, Week 1 out: 75% of the previous week","Increase weight each week until competition","Only speed work, no heavy lifting"],ans:1,exp:"21 days out: hit top circa-max weight. 14 days out: hit current top weight. 7 days out: reduce to 75% of the previous week. This allows full recovery while maintaining neural readiness for competition."},
+  {id:100,s:10,type:"mc",q:"During circa-max training, what is the recommended rep scheme to mimic competition conditions?",opts:["5 sets of 5 reps","3 sets of 10 reps","Two sets of 2 reps, then three singles to the planned weight","One single at maximum"],ans:2,exp:"Circa-max uses two sets of 2 reps followed by three singles working up to the planned weight. This mimics competition format where you get three attempts, building confidence with the heavy loads."},
+  {id:101,s:10,type:"mc",q:"What is the approximate bar speed during strength-speed (circa-max) training?",opts:["1.0-1.2 m/s","0.7-0.9 m/s","0.4 m/s","0.1 m/s"],ans:2,exp:"Strength-speed work moves at approximately 0.4 m/s. This is much slower than explosive strength (1.0+ m/s) because the loads are near-maximal with very heavy band tension."},
+  {id:102,s:10,type:"mc",q:"The 1972 Dynamo Club experiment, which influenced the development of the Conjugate system, demonstrated the effectiveness of:",opts:["Training only competition lifts","Rotating 25-45 special exercises to continuously drive adaptation","Using only bodyweight training","Training once per week at maximal intensity"],ans:1,exp:"The Dynamo Club experiment rotated 25-45 special exercises and showed that exercise variation prevented accommodation and drove continuous adaptation. This directly influenced Louie Simmons' exercise rotation philosophy."},
+  {id:103,s:10,type:"mc",q:"Who were the early powerlifting pioneers from Culver City, California who influenced the original conjugate approach before Louie Simmons formalized it?",opts:["Mark Rippetoe and Jim Wendler","Bill 'Peanuts' West and George Frenn","Ed Coan and Kirk Karwoski","Dave Tate and Jim Wendler"],ans:1,exp:"Bill 'Peanuts' West and George Frenn were early powerlifting pioneers from Culver City (1965-early 1970s) whose training methods influenced the conjugate approach. Louie Simmons later formalized and refined it over 40+ years."},
+  {id:104,s:10,type:"tf",q:"Prilepin's Table was originally developed by studying Soviet Olympic weightlifters, not powerlifters.",ans:true,exp:"A.S. Prilepin developed his table by analyzing the training of Soviet Olympic weightlifters. Louie Simmons adapted these findings to powerlifting, applying the optimal rep/set ranges to squat, bench, and deadlift training."},
+  {id:105,s:10,type:"tf",q:"The circa-max phase should be used year-round as the primary training method, not just before competition.",ans:false,exp:"Circa-max is specifically a short-term peaking tool used 14-28 days before competition. Using it year-round would lead to burnout and overtraining. It's reserved for competition preparation only."}
 ];
 
 // =======================================
@@ -1405,6 +1437,129 @@ var RV = {
 };
 
 // =======================================
+// SURVEY / FEEDBACK
+// =======================================
+var SV = {
+  feedbackKey: 'conjugate_feedback_log',
+
+  start: function() {
+    showPanel('survey-panel');
+    var panel = document.getElementById('survey-panel');
+    var hour = new Date().getHours();
+    var greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+    panel.innerHTML =
+      '<div class="quiz-card" style="max-width:560px;margin:0 auto">' +
+        '<div style="text-align:center;margin-bottom:1.5rem">' +
+          '<span style="font-size:2.5rem">&#x1F44B;</span>' +
+          '<h2 style="margin:0.5rem 0 0.25rem">' + greeting + ', Anna!</h2>' +
+          '<p style="color:var(--text-muted);font-size:0.95rem">' +
+            'We\'re building this app just for you, so your input shapes everything. ' +
+            'Flag confusing questions, tell us what topics need more coverage, or share what\'s working well. ' +
+            'Every bit of feedback helps us make a better study tool.' +
+          '</p>' +
+        '</div>' +
+        '<label for="svTopic" style="font-weight:600;display:block;margin-bottom:0.35rem">What\'s on your mind?</label>' +
+        '<select id="svTopic" class="setup-select" style="margin-bottom:1rem;width:100%">' +
+          '<option value="general">General feedback</option>' +
+          '<option value="confusing">A question was confusing or wrong</option>' +
+          '<option value="topic">Need more questions on a topic</option>' +
+          '<option value="feature">Feature request or idea</option>' +
+          '<option value="bug">Something isn\'t working right</option>' +
+          '<option value="love">Something I love about the app</option>' +
+        '</select>' +
+        '<label for="svMessage" style="font-weight:600;display:block;margin-bottom:0.35rem">Your message</label>' +
+        '<textarea id="svMessage" rows="5" placeholder="Type your feedback here..." ' +
+          'style="width:100%;padding:0.75rem;border:1px solid var(--border);border-radius:var(--radius);' +
+          'font-family:inherit;font-size:0.95rem;resize:vertical;background:var(--input-bg);color:var(--text)"></textarea>' +
+        '<div id="svStatus" style="margin-top:0.75rem;display:none"></div>' +
+        '<div style="display:flex;gap:0.75rem;margin-top:1rem">' +
+          '<button class="btn btn-primary" style="flex:1" onclick="SV.submit()">Submit Feedback</button>' +
+          '<button class="btn" style="flex:0 0 auto" onclick="backToMenu()">Back</button>' +
+        '</div>' +
+        '<div id="svHistory" style="margin-top:1.5rem"></div>' +
+      '</div>';
+
+    this.renderHistory();
+  },
+
+  submit: function() {
+    var topic = document.getElementById('svTopic').value;
+    var message = document.getElementById('svMessage').value.trim();
+    var status = document.getElementById('svStatus');
+
+    if (!message) {
+      status.style.display = 'block';
+      status.innerHTML = '<div class="fb-wrong">Please type a message before submitting.</div>';
+      return;
+    }
+
+    // Save locally
+    var log = JSON.parse(localStorage.getItem(this.feedbackKey) || '[]');
+    var entry = {
+      date: new Date().toISOString(),
+      topic: topic,
+      message: message
+    };
+    log.push(entry);
+    localStorage.setItem(this.feedbackKey, JSON.stringify(log));
+
+    // Try to open a pre-filled GitHub issue
+    var topicLabels = {
+      general: 'General Feedback',
+      confusing: 'Confusing/Wrong Question',
+      topic: 'Topic Request',
+      feature: 'Feature Request',
+      bug: 'Bug Report',
+      love: 'Positive Feedback'
+    };
+    var title = encodeURIComponent('[Feedback] ' + topicLabels[topic]);
+    var body = encodeURIComponent(
+      '**From:** Anna\n' +
+      '**Category:** ' + topicLabels[topic] + '\n' +
+      '**Date:** ' + new Date().toLocaleDateString() + '\n\n' +
+      '---\n\n' +
+      message + '\n\n' +
+      '---\n_Submitted from Conjugate Study Hub_'
+    );
+    var issueUrl = 'https://github.com/Satuno86/conjugate-study-hub/issues/new?title=' + title + '&body=' + body + '&labels=feedback';
+
+    status.style.display = 'block';
+    status.innerHTML =
+      '<div class="fb-correct" style="line-height:1.5">' +
+        '&#x2705; Feedback saved! Thank you, Anna!<br>' +
+        '<a href="' + issueUrl + '" target="_blank" rel="noopener" ' +
+          'style="color:var(--accent);text-decoration:underline;font-size:0.9rem">' +
+          'Click here to also post it on GitHub for Auston to see' +
+        '</a>' +
+      '</div>';
+
+    document.getElementById('svMessage').value = '';
+    this.renderHistory();
+  },
+
+  renderHistory: function() {
+    var container = document.getElementById('svHistory');
+    if (!container) return;
+    var log = JSON.parse(localStorage.getItem(this.feedbackKey) || '[]');
+    if (log.length === 0) { container.innerHTML = ''; return; }
+
+    var html = '<h3 style="font-size:0.95rem;margin-bottom:0.5rem;color:var(--text-muted)">Your previous feedback</h3>';
+    var recent = log.slice(-5).reverse();
+    recent.forEach(function(entry) {
+      var d = new Date(entry.date);
+      var dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      html += '<div style="padding:0.6rem 0;border-top:1px solid var(--border);font-size:0.9rem">' +
+        '<span style="color:var(--text-muted)">' + dateStr + '</span> &mdash; ' +
+        '<strong>' + entry.topic + '</strong><br>' +
+        '<span>' + entry.message.substring(0, 120) + (entry.message.length > 120 ? '...' : '') + '</span>' +
+      '</div>';
+    });
+    container.innerHTML = html;
+  }
+};
+
+// =======================================
 // INIT
 // =======================================
 function initApp() {
@@ -1433,6 +1588,7 @@ function initApp() {
   document.getElementById('qz-mode-btn').addEventListener('click', function() { QZ.setup(); });
   document.getElementById('ft-mode-btn').addEventListener('click', function() { FT.start(); });
   document.getElementById('review-mode-btn').addEventListener('click', function() { RV.start(); });
+  document.getElementById('survey-mode-btn').addEventListener('click', function() { SV.start(); });
 
   // Update stats
   updateStatsBar();
