@@ -448,14 +448,15 @@ header p { font-size:0.9rem; opacity:0.85; }
   60% { transform:translateX(-4px); }
   80% { transform:translateX(2px); }
 }
-.opt-wrong { animation: shake 0.4s ease; }
+button.quiz-opt.opt-wrong { animation: shake 0.4s ease; }
 
 @keyframes correctPulse {
   0% { box-shadow:0 0 0 0 rgba(45,138,78,0.5); }
   70% { box-shadow:0 0 0 8px rgba(45,138,78,0); }
   100% { box-shadow:0 0 0 0 rgba(45,138,78,0); }
 }
-.opt-correct { animation: correctPulse 0.6s ease; }
+button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
+.options label.option-correct { animation: correctPulse 0.6s ease; }
 
 @keyframes slideDown {
   from { transform:translateY(-100%); opacity:0; }
