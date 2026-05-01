@@ -173,7 +173,7 @@ header p { font-size:0.9rem; opacity:0.85; }
 .fc-card {
   position:relative; width:100%; height:380px;
   -webkit-transform-style:preserve-3d; transform-style:preserve-3d;
-  -webkit-transition:-webkit-transform 0.5s; transition:transform 0.5s;
+  -webkit-transition:-webkit-transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); transition:transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .fc-card.flipped { -webkit-transform:rotateY(180deg); transform:rotateY(180deg); }
 .fc-front, .fc-back {
@@ -424,6 +424,81 @@ header p { font-size:0.9rem; opacity:0.85; }
 .progress-ring { display:inline-block; }
 .progress-ring circle { transition: stroke-dashoffset 0.5s ease; }
 
+/* =================== ANIMATIONS =================== */
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(20px); }
+  to { opacity:1; transform:translateY(0); }
+}
+.mode-card {
+  opacity:0; animation: fadeUp 0.4s ease forwards;
+}
+.mode-card:nth-child(1) { animation-delay:0s; }
+.mode-card:nth-child(2) { animation-delay:0.05s; }
+.mode-card:nth-child(3) { animation-delay:0.1s; }
+.mode-card:nth-child(4) { animation-delay:0.15s; }
+.mode-card:nth-child(5) { animation-delay:0.2s; }
+.mode-card:nth-child(6) { animation-delay:0.25s; }
+.mode-card:nth-child(7) { animation-delay:0.3s; }
+.mode-card:active { transform:scale(0.97) !important; }
+
+@keyframes shake {
+  0%, 100% { transform:translateX(0); }
+  20% { transform:translateX(-6px); }
+  40% { transform:translateX(6px); }
+  60% { transform:translateX(-4px); }
+  80% { transform:translateX(2px); }
+}
+.opt-wrong { animation: shake 0.4s ease; }
+
+@keyframes correctPulse {
+  0% { box-shadow:0 0 0 0 rgba(45,138,78,0.5); }
+  70% { box-shadow:0 0 0 8px rgba(45,138,78,0); }
+  100% { box-shadow:0 0 0 0 rgba(45,138,78,0); }
+}
+.opt-correct { animation: correctPulse 0.6s ease; }
+
+@keyframes slideDown {
+  from { transform:translateY(-100%); opacity:0; }
+  to { transform:translateY(0); opacity:1; }
+}
+@keyframes slideUp {
+  from { transform:translateY(0); opacity:1; }
+  to { transform:translateY(-100%); opacity:0; }
+}
+.toast {
+  position:fixed; top:0; left:0; right:0; z-index:9999;
+  padding:1rem 1.5rem; text-align:center;
+  background:linear-gradient(135deg,#1a1a2e,#2a2a4e); color:white;
+  font-weight:600; font-size:0.95rem;
+  box-shadow:0 4px 20px rgba(0,0,0,0.3);
+  animation: slideDown 0.4s ease forwards;
+}
+.toast.dismissing { animation: slideUp 0.3s ease forwards; }
+
+/* Confetti canvas */
+#confetti-canvas {
+  position:fixed; top:0; left:0; width:100%; height:100%;
+  pointer-events:none; z-index:9998;
+}
+
+/* =================== BADGES =================== */
+.badge-grid {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(90px, 1fr));
+  gap:0.75rem;
+}
+.badge-item {
+  text-align:center; padding:0.75rem 0.25rem; border-radius:var(--radius);
+  border:2px solid var(--border); transition:all 0.3s;
+  background:var(--card);
+}
+.badge-item.earned {
+  border-color:var(--accent); background:var(--correct-bg);
+}
+.badge-item.locked { opacity:0.45; filter:grayscale(0.8); }
+.badge-icon { font-size:1.8rem; display:block; margin-bottom:0.25rem; }
+.badge-name { font-size:0.7rem; font-weight:600; line-height:1.2; }
+.badge-check { font-size:0.65rem; color:var(--correct); }
+
 /* =================== PRINT =================== */
 @media print {
   header { background:white !important; color:black; border-bottom:2px solid black; }
@@ -495,6 +570,12 @@ header p { font-size:0.9rem; opacity:0.85; }
     <h3>Review Missed</h3>
     <p>Drill the questions you've gotten wrong. Targeted practice.</p>
     <span class="mode-badge" id="missedCount">0 to review</span>
+  </div>
+  <div class="mode-card" role="button" tabindex="0" id="weak-section-btn" style="display:none;border-color:#ff9800">
+    <span class="mode-icon">&#x26A1;</span>
+    <h3 id="weakSectionTitle">Drill Your Weakest</h3>
+    <p id="weakSectionDesc">Focus on the section you struggle with most.</p>
+    <span class="mode-badge" style="background:#ff9800" id="weakSectionBadge"></span>
   </div>
   <div class="mode-card" role="button" tabindex="0" id="dash-mode-btn">
     <span class="mode-icon">&#x1F4C8;</span>
@@ -650,6 +731,180 @@ var QUESTIONS = [
 ];
 
 // =======================================
+// SECTION COLORS
+// =======================================
+var SECTION_COLORS = {
+  1: '#6366f1', 2: '#c4322e', 3: '#2196f3', 4: '#16a34a', 5: '#9333ea',
+  6: '#0891b2', 7: '#ea580c', 8: '#d946ef', 9: '#ca8a04', 10: '#dc2626'
+};
+
+function sectionTagStyle(sectionNum) {
+  var c = SECTION_COLORS[sectionNum] || 'var(--accent)';
+  return 'background:' + c;
+}
+
+// =======================================
+// BADGES
+// =======================================
+var BADGES = [
+  {id:'first_rep', name:'First Rep', icon:'&#x1F3CB;&#xFE0F;', desc:'Complete your first study session', check: function(d){ return d.totalSessions >= 1; }},
+  {id:'warming_up', name:'Warming Up', icon:'&#x1F525;', desc:'Complete 5 study sessions', check: function(d){ return d.totalSessions >= 5; }},
+  {id:'dedicated', name:'Dedicated', icon:'&#x1F4AA;', desc:'Complete 20 study sessions', check: function(d){ return d.totalSessions >= 20; }},
+  {id:'pr_day', name:'PR Day', icon:'&#x1F3C6;', desc:'Score 100% on any quiz', check: function(d){ return d.quizHistory.some(function(h){ return h.score === h.total && h.total > 0; }); }},
+  {id:'passing', name:'Passing Grade', icon:'&#x2705;', desc:'Score 70%+ on a full practice test', check: function(d){ return d.quizHistory.some(function(h){ return h.mode === 'test' && h.total > 0 && (h.score/h.total) >= 0.7; }); }},
+  {id:'streak_3', name:'Three-Peat', icon:'&#x1F4C5;', desc:'3-day study streak', check: function(d){ return d.studyStreak.longest >= 3; }},
+  {id:'streak_7', name:"Louie\\'s Approval", icon:'&#x1F4AA;', desc:'7-day study streak', check: function(d){ return d.studyStreak.longest >= 7; }},
+  {id:'streak_30', name:'Iron Will', icon:'&#x26A1;', desc:'30-day study streak', check: function(d){ return d.studyStreak.longest >= 30; }},
+  {id:'clean_slate', name:'Clean Slate', icon:'&#x1F9F9;', desc:'Clear your review list', check: function(d){ return d.totalSessions >= 3 && Object.keys(d.missedQuestions).length === 0; }},
+  {id:'night_owl', name:'Night Owl', icon:'&#x1F989;', desc:'Study after 10pm', check: function(d){ return d.quizHistory.some(function(h){ return new Date(h.date).getHours() >= 22; }); }},
+  {id:'early_bird', name:'Early Bird', icon:'&#x1F305;', desc:'Study before 7am', check: function(d){ return d.quizHistory.some(function(h){ return new Date(h.date).getHours() < 7; }); }},
+  {id:'speed_demon', name:'Speed Demon', icon:'&#x1F3CE;&#xFE0F;', desc:'Finish a 10-question quiz in under 60 seconds', check: function(d){ return d.quizHistory.some(function(h){ return h.mode === 'quiz' && h.total === 10 && h.timeSeconds > 0 && h.timeSeconds < 60; }); }}
+];
+
+function getEarnedBadges() {
+  var data = Store.get();
+  var earned = [];
+  BADGES.forEach(function(b) {
+    try { if (b.check(data)) earned.push(b.id); } catch(e) {}
+  });
+  return earned;
+}
+
+function checkNewBadges() {
+  var data = Store.get();
+  var prev = data._earnedBadges || [];
+  var current = getEarnedBadges();
+  var newOnes = current.filter(function(id) { return prev.indexOf(id) === -1; });
+  data._earnedBadges = current;
+  Store.save(data);
+  if (newOnes.length > 0) {
+    var badge = BADGES.find(function(b) { return b.id === newOnes[0]; });
+    if (badge) showToast(badge.icon + ' Badge Earned: ' + badge.name + '!');
+  }
+}
+
+function showToast(msg) {
+  var existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  var el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = msg;
+  document.body.appendChild(el);
+  setTimeout(function() {
+    el.classList.add('dismissing');
+    setTimeout(function() { el.remove(); }, 300);
+  }, 3000);
+}
+
+// =======================================
+// CONFETTI
+// =======================================
+function fireConfetti() {
+  var canvas = document.getElementById('confetti-canvas');
+  if (!canvas) return;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  var ctx = canvas.getContext('2d');
+  var particles = [];
+  var colors = ['#c4322e','#e8524e','#ff9800','#4caf50','#2196f3','#9333ea','#ffc107'];
+
+  for (var i = 0; i < 80; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: -10 - Math.random() * 40,
+      w: 6 + Math.random() * 6,
+      h: 4 + Math.random() * 4,
+      vx: (Math.random() - 0.5) * 6,
+      vy: 2 + Math.random() * 4,
+      rot: Math.random() * 360,
+      rotV: (Math.random() - 0.5) * 10,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      life: 1
+    });
+  }
+
+  var startTime = Date.now();
+  function animate() {
+    var elapsed = Date.now() - startTime;
+    if (elapsed > 3000) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(function(p) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.15;
+      p.rot += p.rotV;
+      p.life = Math.max(0, 1 - elapsed / 3000);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      ctx.restore();
+    });
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+}
+
+// =======================================
+// SCORE COUNT-UP ANIMATION
+// =======================================
+function animateCount(elementId, target, durationMs) {
+  var el = document.getElementById(elementId);
+  if (!el) return;
+  var start = Date.now();
+  var dur = durationMs || 1200;
+  function step() {
+    var progress = Math.min((Date.now() - start) / dur, 1);
+    // Ease out cubic
+    var eased = 1 - Math.pow(1 - progress, 3);
+    var current = Math.round(eased * target);
+    el.textContent = current + '%';
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  el.textContent = '0%';
+  requestAnimationFrame(step);
+}
+
+// =======================================
+// WEAKEST SECTION
+// =======================================
+function updateWeakestSection() {
+  var data = Store.get();
+  var history = data.quizHistory || [];
+  if (history.length < 3) return;
+
+  // Count misses per section
+  var sectionMisses = {};
+  for (var qid in data.missedQuestions) {
+    if (data.missedQuestions[qid] > 0) {
+      var q = QUESTIONS.find(function(qq) { return qq.id === parseInt(qid); });
+      if (q) {
+        sectionMisses[q.s] = (sectionMisses[q.s] || 0) + data.missedQuestions[qid];
+      }
+    }
+  }
+
+  var worstSection = null, worstCount = 0;
+  for (var s in sectionMisses) {
+    if (sectionMisses[s] > worstCount) {
+      worstCount = sectionMisses[s];
+      worstSection = parseInt(s);
+    }
+  }
+
+  var card = document.getElementById('weak-section-btn');
+  if (worstSection && card) {
+    card.style.display = '';
+    document.getElementById('weakSectionTitle').textContent = 'Drill: ' + SECTIONS[worstSection];
+    document.getElementById('weakSectionDesc').textContent = 'Your most-missed section. Focus here to improve.';
+    document.getElementById('weakSectionBadge').textContent = worstCount + ' missed';
+    card.onclick = function() { QZ._weakSection = worstSection; QZ.beginWeak(worstSection); };
+  }
+}
+
+// =======================================
 // LOCAL STORAGE (progress tracking)
 // =======================================
 var Store = {
@@ -733,6 +988,7 @@ var Store = {
 
     this.save(data);
     updateStatsBar();
+    checkNewBadges();
   },
 
   getMissedIds: function() {
@@ -798,6 +1054,9 @@ function updateStatsBar() {
   } else {
     reviewCard.style.display = 'none';
   }
+
+  // Weakest section card
+  updateWeakestSection();
 }
 
 // =======================================
@@ -890,7 +1149,7 @@ var FC = {
     var num = this.idx + 1;
     var sName = SECTIONS[q.s] || 'Unknown';
 
-    var frontContent = '<div class="fc-section-tag">' + sName + '</div>';
+    var frontContent = '<div class="fc-section-tag" style="' + sectionTagStyle(q.s) + '">' + sName + '</div>';
     frontContent += '<div class="fc-question">' + q.q + '</div>';
     if (q.type === 'tf') {
       frontContent += '<div class="fc-hint">True or False?</div>';
@@ -903,7 +1162,7 @@ var FC = {
       frontContent += '</div>';
     }
 
-    var backContent = '<div class="fc-section-tag">' + sName + '</div>';
+    var backContent = '<div class="fc-section-tag" style="' + sectionTagStyle(q.s) + '">' + sName + '</div>';
     backContent += '<div class="fc-answer-label">Answer</div>';
     if (q.type === 'tf') {
       backContent += '<div class="fc-answer-value">' + (q.ans ? 'TRUE' : 'FALSE') + '</div>';
@@ -1055,7 +1314,10 @@ var QZ = {
     if (this.current >= this.questions.length) {
       clearInterval(this.timer);
       Store.recordSession('quiz', this.score, this.questions.length, this._section, this.seconds);
+      var pct = Math.round((this.score / this.questions.length) * 100);
       panel.innerHTML = this.resultsHTML();
+      animateCount('qzBigScore', pct, 1200);
+      if (pct >= 80) fireConfetti();
       return;
     }
     var q = this.questions[this.current];
@@ -1089,7 +1351,7 @@ var QZ = {
       '</div>' +
       '<div class="quiz-progress-bar"><div class="quiz-progress-fill" style="width:' + ((num/total)*100) + '%"></div></div>' +
       '<div class="quiz-card">' +
-        '<div class="quiz-section-tag">' + sName + '</div>' +
+        '<div class="quiz-section-tag" style="' + sectionTagStyle(q.s) + '">' + sName + '</div>' +
         '<div class="quiz-question">' + q.q + '</div>' +
         optionsHTML +
         '<div class="quiz-feedback" id="qzFeedback"></div>' +
@@ -1144,6 +1406,20 @@ var QZ = {
     backToMenu();
   },
 
+  beginWeak: function(section) {
+    var pool = QUESTIONS.filter(function(q) { return q.s === section && q.type !== 'scenario'; });
+    shuffle(pool);
+    this.questions = pool.slice(0, Math.min(15, pool.length));
+    this.current = 0;
+    this.score = 0;
+    this.answered = 0;
+    this.seconds = 0;
+    this._section = String(section);
+    showMode('quiz');
+    this.startTimer();
+    this.renderQuestion();
+  },
+
   resultsHTML: function() {
     var total = this.questions.length;
     var pct = total > 0 ? Math.round((this.score / total) * 100) : 0;
@@ -1158,7 +1434,7 @@ var QZ = {
 
     return '<div class="results-card">' +
         '<h2>Quiz Complete</h2>' +
-        '<div class="big-score">' + pct + '%</div>' +
+        '<div class="big-score" id="qzBigScore">0%</div>' +
         '<p>' + this.score + ' of ' + total + ' correct in ' + timeStr + '</p>' +
         '<p class="grade-text">' + grade + '</p>' +
         '<div class="fc-results-actions">' +
@@ -1214,7 +1490,7 @@ var FT = {
     var self = this;
     sectionOrder.forEach(function(s) {
       if (!bySection[s]) return;
-      html += '<div class="section-divider">' + SECTIONS[s] + '</div>';
+      html += '<div class="section-divider" style="border-color:' + (SECTION_COLORS[s] || 'var(--accent)') + '">' + SECTIONS[s] + '</div>';
       shuffle(bySection[s]).forEach(function(q) {
         qNum++;
         html += self.renderCard(q, qNum);
@@ -1380,12 +1656,14 @@ var FT = {
 
     var rp = document.getElementById('ftResultsPanel');
     rp.innerHTML =
-      '<div class="big-score">' + pct + '%</div>' +
+      '<div class="big-score" id="ftBigScore">0%</div>' +
       '<p class="grade-text">' + grade + '</p>' +
       '<p>' + correct + ' of ' + total + ' scored questions correct. Scenario questions shown for self-assessment.</p>' +
       '<div class="section-breakdown">' + breakdownHTML + '</div>';
     rp.style.display = 'block';
     rp.scrollIntoView({behavior:'smooth'});
+    animateCount('ftBigScore', pct, 1500);
+    if (pct >= 80) fireConfetti();
   },
 
   showAnswers: function() {
@@ -1439,7 +1717,10 @@ var RV = {
     var panel = document.getElementById('review-panel');
     if (this.current >= this.questions.length) {
       Store.recordSession('review', this.score, this.questions.length);
+      var pct = this.questions.length > 0 ? Math.round((this.score / this.questions.length) * 100) : 0;
       panel.innerHTML = this.resultsHTML();
+      animateCount('rvBigScore', pct, 1200);
+      if (pct >= 80) fireConfetti();
       return;
     }
     var q = this.questions[this.current];
@@ -1473,7 +1754,7 @@ var RV = {
       '</div>' +
       '<div class="quiz-progress-bar"><div class="quiz-progress-fill" style="width:' + ((num/total)*100) + '%"></div></div>' +
       '<div class="quiz-card">' +
-        '<div class="quiz-section-tag">' + sName + '</div>' +
+        '<div class="quiz-section-tag" style="' + sectionTagStyle(q.s) + '">' + sName + '</div>' +
         '<div class="quiz-question">' + q.q + '</div>' +
         optionsHTML +
         '<div class="quiz-feedback" id="rvFeedback"></div>' +
@@ -1529,7 +1810,7 @@ var RV = {
     var remaining = Store.getMissedIds().length;
     return '<div class="results-card">' +
         '<h2>Review Session Complete</h2>' +
-        '<div class="big-score">' + pct + '%</div>' +
+        '<div class="big-score" id="rvBigScore">0%</div>' +
         '<p>' + this.score + ' of ' + total + ' correct</p>' +
         '<p class="grade-text">' + (remaining > 0 ? remaining + ' questions still in your review list.' : 'Review list cleared! Great work.') + '</p>' +
         '<div class="fc-results-actions">' +
@@ -1597,6 +1878,12 @@ var DASH = {
     '</div>';
 
     html += '</div>'; // close dash-grid
+
+    // Badges
+    html += '<div class="dash-card" style="margin-bottom:1.25rem">' +
+      '<h3>&#x1F3C5; Badges</h3>' +
+      this.badgesHTML() +
+    '</div>';
 
     // Section breakdown
     html += '<div class="dash-card" style="margin-bottom:1.25rem">' +
@@ -1737,24 +2024,22 @@ var DASH = {
     });
 
     var html = '';
-    var colors = ['#c4322e','#e8524e','#ff6b35','#ff9800','#ffc107','#4caf50','#2196f3','#9c27b0','#607d8b','#795548'];
-    var idx = 0;
     for (var sec in SECTIONS) {
       var sd = sectionData[sec];
+      var secColor = SECTION_COLORS[sec] || 'var(--accent)';
       if (!sd || sd.total === 0) {
         html += '<div class="dash-section-bar">' +
-          '<div class="dash-section-label"><span>' + SECTIONS[sec] + '</span><span style="color:var(--text-muted)">No data</span></div>' +
-          '<div class="dash-section-track"><div class="dash-section-fill" style="width:0;background:' + colors[idx % colors.length] + '"></div></div>' +
+          '<div class="dash-section-label"><span style="color:' + secColor + '">' + SECTIONS[sec] + '</span><span style="color:var(--text-muted)">No data</span></div>' +
+          '<div class="dash-section-track"><div class="dash-section-fill" style="width:0;background:' + secColor + '"></div></div>' +
         '</div>';
       } else {
         var pct = Math.round((sd.correct / sd.total) * 100);
         var barColor = pct >= 70 ? 'var(--correct)' : pct >= 50 ? '#ff9800' : 'var(--incorrect)';
         html += '<div class="dash-section-bar">' +
-          '<div class="dash-section-label"><span>' + SECTIONS[sec] + '</span><span style="font-weight:600;color:' + barColor + '">' + pct + '%</span></div>' +
+          '<div class="dash-section-label"><span style="color:' + secColor + '">' + SECTIONS[sec] + '</span><span style="font-weight:600;color:' + barColor + '">' + pct + '%</span></div>' +
           '<div class="dash-section-track"><div class="dash-section-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>' +
         '</div>';
       }
-      idx++;
     }
     return html;
   },
@@ -2013,6 +2298,21 @@ var DASH = {
 
     svg += '</svg>';
     return svg;
+  },
+
+  badgesHTML: function() {
+    var earned = getEarnedBadges();
+    var html = '<div class="badge-grid">';
+    BADGES.forEach(function(b) {
+      var isEarned = earned.indexOf(b.id) !== -1;
+      html += '<div class="badge-item ' + (isEarned ? 'earned' : 'locked') + '" title="' + b.desc + '">' +
+        '<span class="badge-icon">' + (isEarned ? b.icon : '&#x1F512;') + '</span>' +
+        '<div class="badge-name">' + b.name + '</div>' +
+        (isEarned ? '<div class="badge-check">&#x2713; Earned</div>' : '') +
+      '</div>';
+    });
+    html += '</div>';
+    return html;
   }
 };
 
@@ -2182,5 +2482,6 @@ function initApp() {
 
 document.addEventListener('DOMContentLoaded', initApp);
 </script>
+<canvas id="confetti-canvas"></canvas>
 </body>
 </html>
