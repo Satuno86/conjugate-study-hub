@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Conjugate Method Study Hub</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1a2e">
+
+<!-- iOS PWA -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Conjugate">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+<!-- Fonts with fallback -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* =================== THEME VARIABLES =================== */
+:root {
+  --primary: #1a1a2e;
+  --primary-light: #2a2a4e;
+  --accent: #c4322e;
+  --accent-light: #e8524e;
+  --bg: #f5f5f0;
+  --card: #ffffff;
+  --correct: #2d8a4e;
+  --correct-bg: #e8f5e9;
+  --incorrect: #c4322e;
+  --incorrect-bg: #fce4e4;
+  --neutral-bg: #e3f2fd;
+  --text: #1a1a2e;
+  --text-muted: #666;
+  --border: #e0e0e0;
+  --radius: 12px;
+  --shadow: 0 2px 8px rgba(0,0,0,0.04);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.1);
+  --input-bg: white;
+  --header-bg: linear-gradient(135deg, #1a1a2e 0%, #2a2a4e 100%);
+}
+
+[data-theme="dark"] {
+  --primary: #e0e0e0;
+  --primary-light: #b0b0b0;
+  --bg: #121218;
+  --card: #1e1e2a;
+  --correct-bg: #1a3a2a;
+  --incorrect-bg: #3a1a1a;
+  --neutral-bg: #1a2a3a;
+  --text: #e0e0e0;
+  --text-muted: #999;
+  --border: #333344;
+  --shadow: 0 2px 8px rgba(0,0,0,0.2);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
+  --input-bg: #2a2a3a;
+  --header-bg: linear-gradient(135deg, #0a0a18 0%, #1a1a2e 100%);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:'Inter',system-ui,-apple-system,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.6;
+  -webkit-text-size-adjust:100%;
+  padding-top: env(safe-area-inset-top);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* =================== HEADER =================== */
+header {
+  background: var(--header-bg);
+  color: white; padding: 2rem 1.5rem 1.5rem; text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  position: relative;
+}
+header h1 { font-size:2rem; font-weight:700; margin-bottom:0.25rem; }
+header p { font-size:0.9rem; opacity:0.85; }
+
+/* Header controls */
+.header-controls {
+  position: absolute; top: 1rem; right: 1rem;
+  display: flex; gap: 0.5rem; align-items: center;
+}
+.icon-btn {
+  background: rgba(255,255,255,0.15); border: none; color: white;
+  width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; transition: background 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.icon-btn:hover { background: rgba(255,255,255,0.25); }
+
+/* Stats bar */
+.stats-bar {
+  display: flex; justify-content: center; gap: 1.5rem;
+  padding: 0.75rem 1.5rem; background: var(--card);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem; color: var(--text-muted);
+  transition: background-color 0.3s;
+}
+.stat-item { display: flex; align-items: center; gap: 0.3rem; }
+.stat-value { font-weight: 700; color: var(--accent); }
+
+/* =================== BUTTONS =================== */
+.btn {
+  display:inline-block; padding:0.6rem 1.2rem; border:2px solid var(--border);
+  border-radius:8px; background:var(--card); color:var(--text); font-family:inherit;
+  font-size:0.9rem; font-weight:500; cursor:pointer; transition:all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:hover { background:var(--bg); }
+.btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
+.btn-primary:hover { background:var(--accent-light); border-color:var(--accent-light); }
+.btn-sm { padding:0.4rem 0.8rem; font-size:0.8rem; }
+.btn-lg { padding:0.8rem 2rem; font-size:1.05rem; }
+.btn-review { background:#fff3e0; border-color:#ff9800; color:#e65100; }
+.btn-review:hover { background:#ffe0b2; }
+.btn-known { background:var(--correct-bg); border-color:var(--correct); color:var(--correct); }
+.btn-known:hover { background:#c8e6c9; }
+[data-theme="dark"] .btn-review { background:#3a2a10; color:#ff9800; border-color:#ff9800; }
+
+/* =================== MODE SELECTOR =================== */
+#mode-selector {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:1.5rem;
+  max-width:900px; margin:2rem auto; padding:0 1.5rem;
+}
+.mode-card {
+  font-family:inherit; -webkit-appearance:none; appearance:none;
+  background:var(--card); border-radius:var(--radius); padding:2rem 1.5rem;
+  text-align:center; cursor:pointer; border:2px solid var(--border);
+  transition:all 0.25s; box-shadow:var(--shadow);
+  -webkit-tap-highlight-color:rgba(196,50,46,0.15);
+  width:100%;
+}
+.mode-card:hover { transform:translateY(-4px); box-shadow:var(--shadow-lg); border-color:var(--accent); }
+.mode-card .mode-icon { font-size:2.5rem; margin-bottom:0.75rem; display:block; }
+.mode-card h3 { font-size:1.2rem; margin-bottom:0.5rem; }
+.mode-card p { font-size:0.85rem; color:var(--text-muted); line-height:1.5; }
+.mode-card .mode-badge {
+  display:inline-block; background:var(--accent); color:white;
+  padding:0.15rem 0.6rem; border-radius:10px; font-size:0.7rem;
+  font-weight:600; margin-top:0.5rem;
+}
+.mode-detail { margin-top:1rem; text-align:left; }
+.mode-detail label { display:block; font-size:0.85rem; font-weight:600; margin-bottom:0.3rem; }
+.setup-select {
+  width:100%; padding:0.5rem; border:2px solid var(--border); border-radius:8px;
+  font-family:inherit; font-size:0.9rem; background:var(--input-bg); color:var(--text);
+}
+
+/* =================== MODE PANELS =================== */
+.mode-panel { display:none; max-width:900px; margin:0 auto; padding:0 1.5rem 2rem; }
+
+/* =================== FLASHCARD MODE =================== */
+.fc-header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:1rem 0; flex-wrap:wrap; gap:0.5rem;
+}
+.fc-progress { font-weight:600; font-size:1rem; }
+.fc-score { font-size:0.85rem; color:var(--text-muted); }
+.fc-progress-bar {
+  width:100%; height:6px; background:var(--border); border-radius:3px; margin-bottom:1.5rem;
+}
+.fc-progress-fill { height:100%; background:var(--accent); border-radius:3px; transition:width 0.3s; }
+.fc-card-container {
+  -webkit-perspective:1000px; perspective:1000px;
+  cursor:pointer; margin-bottom:1rem;
+}
+.fc-card {
+  position:relative; width:100%; height:380px;
+  -webkit-transform-style:preserve-3d; transform-style:preserve-3d;
+  -webkit-transition:-webkit-transform 0.5s; transition:transform 0.5s;
+}
+.fc-card.flipped { -webkit-transform:rotateY(180deg); transform:rotateY(180deg); }
+.fc-front, .fc-back {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  -webkit-backface-visibility:hidden; backface-visibility:hidden;
+  border-radius:var(--radius);
+  background:var(--card); border:2px solid var(--border);
+  padding:2rem; display:flex; flex-direction:column; justify-content:center;
+  box-shadow:0 4px 16px rgba(0,0,0,0.06);
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
+}
+.fc-back { -webkit-transform:rotateY(180deg); transform:rotateY(180deg); background:var(--bg); }
+.fc-section-tag {
+  display:inline-block; background:var(--accent); color:white;
+  padding:0.2rem 0.7rem; border-radius:20px; font-size:0.75rem;
+  font-weight:600; margin-bottom:1rem; align-self:flex-start;
+}
+.fc-question { font-size:1.15rem; font-weight:500; line-height:1.6; margin-bottom:1rem; }
+.fc-hint { font-size:0.9rem; color:var(--accent); font-weight:600; font-style:italic; }
+.fc-options { display:flex; flex-direction:column; gap:0.4rem; margin-top:0.5rem; }
+.fc-option { font-size:0.9rem; color:var(--text-muted); padding:0.3rem 0; }
+.fc-answer-label { font-size:0.8rem; font-weight:700; text-transform:uppercase; color:var(--correct); letter-spacing:0.05em; margin-bottom:0.5rem; }
+.fc-answer-value { font-size:1.15rem; font-weight:600; margin-bottom:1rem; color:var(--correct); }
+.fc-explanation { font-size:0.9rem; color:var(--text-muted); line-height:1.6; border-top:1px solid var(--border); padding-top:1rem; }
+.fc-hint-tap { text-align:center; font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem; }
+.fc-actions { display:flex; gap:1rem; justify-content:center; }
+.fc-results-actions { display:flex; gap:1rem; justify-content:center; margin-top:1.5rem; flex-wrap:wrap; }
+
+/* =================== QUIZ MODE =================== */
+.quiz-setup {
+  background:var(--card); border-radius:var(--radius); padding:2rem;
+  border:2px solid var(--border); max-width:500px; margin:2rem auto;
+}
+.quiz-setup h2 { margin-bottom:1.5rem; }
+.setup-group { margin-bottom:1.5rem; }
+.setup-group label { display:block; font-weight:600; font-size:0.9rem; margin-bottom:0.5rem; }
+.setup-options { display:flex; gap:0.5rem; flex-wrap:wrap; }
+.setup-btn {
+  padding:0.5rem 1.2rem; border:2px solid var(--border); border-radius:8px;
+  background:var(--input-bg); color:var(--text); cursor:pointer;
+  font-family:inherit; font-size:0.9rem; transition:all 0.2s;
+}
+.setup-btn.active { background:var(--accent); color:white; border-color:var(--accent); }
+.setup-btn:hover { border-color:var(--accent); }
+.quiz-header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:1rem 0; flex-wrap:wrap; gap:0.5rem;
+}
+.quiz-counter { font-weight:600; font-size:1rem; }
+.quiz-stats { font-size:0.85rem; color:var(--text-muted); }
+.quiz-progress-bar { width:100%; height:6px; background:var(--border); border-radius:3px; margin-bottom:1.5rem; }
+.quiz-progress-fill { height:100%; background:var(--accent); border-radius:3px; transition:width 0.3s; }
+.quiz-card {
+  background:var(--card); border-radius:var(--radius); padding:2rem;
+  border:2px solid var(--border); box-shadow:0 4px 16px rgba(0,0,0,0.06);
+}
+.quiz-section-tag {
+  display:inline-block; background:var(--accent); color:white;
+  padding:0.2rem 0.7rem; border-radius:20px; font-size:0.75rem;
+  font-weight:600; margin-bottom:1rem;
+}
+.quiz-question { font-size:1.1rem; font-weight:500; line-height:1.6; margin-bottom:1.5rem; }
+.quiz-options { display:flex; flex-direction:column; gap:0.6rem; }
+.quiz-opt {
+  display:block; width:100%; text-align:left; padding:0.8rem 1rem;
+  border:2px solid var(--border); border-radius:8px; background:var(--input-bg);
+  font-family:inherit; font-size:0.95rem; cursor:pointer; transition:all 0.2s;
+  color:var(--text);
+}
+.quiz-opt:hover:not(:disabled) { border-color:var(--accent); background:var(--bg); }
+.quiz-opt:disabled { cursor:default; }
+.opt-correct { background:var(--correct-bg) !important; border-color:var(--correct) !important; color:var(--correct); font-weight:600; }
+.opt-wrong { background:var(--incorrect-bg) !important; border-color:var(--incorrect) !important; color:var(--incorrect); }
+.opt-neutral { opacity:0.5; }
+#qzFeedback { display:none; margin-top:1.5rem; padding-top:1.5rem; border-top:1px solid var(--border); }
+.fb-correct { font-weight:700; color:var(--correct); font-size:1.1rem; margin-bottom:0.5rem; }
+.fb-wrong { font-weight:700; color:var(--incorrect); font-size:1.1rem; margin-bottom:0.5rem; }
+.fb-explanation { font-size:0.9rem; color:var(--text-muted); line-height:1.6; }
+
+/* =================== FULL TEST MODE =================== */
+.test-header { padding:1rem 0; }
+.test-header h2 { margin:0.5rem 0 0.25rem; }
+.test-subtitle { font-size:0.9rem; color:var(--text-muted); }
+.test-controls { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; padding:1rem 0; }
+.test-score-bar { display:flex; align-items:center; gap:1rem; flex:1; }
+#ftScoreDisplay { font-weight:600; white-space:nowrap; }
+.progress-track { flex:1; height:8px; background:var(--border); border-radius:4px; min-width:100px; }
+.progress-fill { height:100%; background:var(--accent); border-radius:4px; transition:width 0.3s; }
+.test-btn-group { display:flex; gap:0.5rem; flex-wrap:wrap; }
+.section-divider {
+  font-size:1.1rem; font-weight:700; color:var(--text);
+  padding:1.5rem 0 0.75rem; margin-top:1rem;
+  border-bottom:2px solid var(--accent); margin-bottom:1rem;
+}
+
+/* Question cards (used in full test) */
+.question-card {
+  background:var(--card); border-radius:var(--radius); padding:1.5rem;
+  margin-bottom:1rem; border:2px solid var(--border);
+  transition:border-color 0.3s, box-shadow 0.3s, background-color 0.3s;
+}
+.question-card.graded-correct { border-color:var(--correct); background:var(--correct-bg); }
+.question-card.graded-incorrect { border-color:var(--incorrect); background:var(--incorrect-bg); }
+.q-header { display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem; flex-wrap:wrap; }
+.q-number {
+  display:inline-block; background:var(--accent); color:white;
+  padding:0.15rem 0.6rem; border-radius:6px; font-size:0.8rem; font-weight:700;
+}
+.result-badge {
+  font-size:0.8rem; font-weight:700; padding:0.15rem 0.6rem; border-radius:6px;
+}
+.graded-correct .result-badge { background:var(--correct); color:white; }
+.graded-incorrect .result-badge { background:var(--incorrect); color:white; }
+.q-section-tag { font-size:0.75rem; color:var(--text-muted); font-weight:500; margin-left:auto; }
+.q-text { font-size:1rem; font-weight:500; line-height:1.6; margin-bottom:1rem; }
+.options { display:flex; flex-direction:column; gap:0.4rem; }
+.options label, .tf-options label {
+  display:block; padding:0.6rem 0.8rem; border:2px solid var(--border);
+  border-radius:8px; cursor:pointer; font-size:0.9rem; transition:all 0.2s;
+  background:var(--input-bg);
+}
+.options label:hover, .tf-options label:hover { border-color:var(--accent); }
+.options input[type="radio"], .tf-options input[type="radio"] { margin-right:0.5rem; }
+.option-correct { background:var(--correct-bg) !important; border-color:var(--correct) !important; color:var(--correct); font-weight:600; }
+.option-wrong-selected { background:var(--incorrect-bg) !important; border-color:var(--incorrect) !important; color:var(--incorrect); }
+.tf-options { display:flex; gap:0.5rem; }
+.tf-options label { flex:1; text-align:center; }
+.scenario-textarea {
+  width:100%; padding:0.8rem; border:2px solid var(--border); border-radius:8px;
+  font-family:inherit; font-size:0.9rem; resize:vertical;
+  background:var(--input-bg); color:var(--text);
+}
+.answer-reveal {
+  margin-top:1rem; padding:1rem; border-radius:8px;
+  border:1px solid var(--border); display:none;
+}
+.answer-reveal.incorrect { background:var(--incorrect-bg); border-color:var(--incorrect); }
+.answer-reveal.neutral { background:var(--neutral-bg); border-color:#90caf9; }
+.answer-label { font-weight:700; margin-bottom:0.5rem; font-size:0.95rem; }
+.answer-explanation { font-size:0.85rem; color:var(--text-muted); line-height:1.6; }
+
+/* =================== RESULTS =================== */
+.results-panel {
+  background:var(--card); border-radius:var(--radius); padding:2rem;
+  margin:1.5rem 0; border:2px solid var(--border); text-align:center;
+  box-shadow:var(--shadow);
+}
+.results-card {
+  background:var(--card); border-radius:var(--radius); padding:2.5rem;
+  border:2px solid var(--border); text-align:center; max-width:500px; margin:2rem auto;
+  box-shadow:var(--shadow);
+}
+.results-card h2 { margin-bottom:1rem; }
+.big-score { font-size:3.5rem; font-weight:700; color:var(--accent); margin:0.5rem 0; }
+.grade-text { font-size:0.95rem; color:var(--text-muted); margin:0.5rem 0 1rem; }
+.section-breakdown { text-align:left; margin-top:1.5rem; }
+.sb-item { display:flex; justify-content:space-between; padding:0.5rem 0; border-bottom:1px solid var(--border); }
+.sb-label { font-weight:500; }
+.sb-score { font-weight:600; color:var(--accent); }
+
+/* History list */
+.history-list { text-align:left; margin-top:1rem; }
+.history-item {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:0.6rem 0; border-bottom:1px solid var(--border);
+  font-size:0.85rem;
+}
+.history-date { color:var(--text-muted); }
+.history-score { font-weight:600; color:var(--accent); }
+
+/* =================== RESPONSIVE =================== */
+@media (max-width: 700px) {
+  #mode-selector { grid-template-columns:1fr; }
+  header h1 { font-size:1.6rem; }
+  .fc-card { height:auto; min-height:320px; }
+  .fc-front, .fc-back { position:relative; height:auto; min-height:320px; }
+  .fc-back { position:absolute; top:0; left:0; width:100%; min-height:320px; }
+  .fc-card.flipped .fc-front { visibility:hidden; }
+  .fc-actions { flex-direction:column; }
+  .fc-actions .btn { width:100%; text-align:center; }
+  .test-controls { flex-direction:column; }
+  .test-btn-group { width:100%; }
+  .test-btn-group .btn { flex:1; }
+  .setup-options { flex-wrap:wrap; }
+  .quiz-opt { padding:1rem; font-size:1rem; }
+  .options label, .tf-options label { padding:0.8rem 1rem; font-size:1rem; }
+  .stats-bar { gap: 1rem; font-size: 0.75rem; }
+}
+
+/* =================== PRINT =================== */
+@media print {
+  header { background:white !important; color:black; border-bottom:2px solid black; }
+  #mode-selector, .fc-actions, .fc-hint-tap, .test-controls, .quiz-header, .btn, .stats-bar, .header-controls { display:none; }
+  .question-card { page-break-inside:avoid; border:1px solid #ccc; }
+  .results-panel { box-shadow:none; border:1px solid #ccc; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-controls">
+    <button class="icon-btn" id="darkModeBtn" title="Toggle dark mode" aria-label="Toggle dark mode">&#x1F319;</button>
+  </div>
+  <h1>Conjugate Method Study Hub</h1>
+  <p>Westside Barbell System | Strength Coach Certification Prep</p>
+</header>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat-item">&#x1F525; <span class="stat-value" id="streakDisplay">0</span> day streak</div>
+  <div class="stat-item">&#x1F4CA; <span class="stat-value" id="sessionsDisplay">0</span> sessions</div>
+  <div class="stat-item">&#x1F3AF; <span class="stat-value" id="avgScoreDisplay">--</span> avg score</div>
+</div>
+
+<noscript>
+<div style="max-width:900px;margin:2rem auto;padding:0 1.5rem;text-align:center;">
+  <p style="background:#fff3e0;border:2px solid #ff9800;border-radius:12px;padding:1.5rem;font-size:1rem;color:#e65100;font-weight:600;line-height:1.6;">
+    This app requires a browser to work. Tap the <strong>share icon</strong> (box with arrow) at the bottom, then choose <strong>&ldquo;Open in Safari&rdquo;</strong> to use flashcards, quizzes, and practice tests.
+  </p>
+</div>
+</noscript>
+
+<div id="mode-selector">
+  <div class="mode-card" role="button" tabindex="0" id="fc-mode-btn">
+    <span class="mode-icon">&#x1F4DA;</span>
+    <h3>Flashcards</h3>
+    <p>Quick 5-minute study bursts. Flip cards, mark what you know vs. need to review.</p>
+    <div class="mode-detail" id="fc-setup" style="display:none">
+      <label>Section:</label>
+      <select id="fcSectionFilter" class="setup-select">
+        <option value="all">All Sections</option>
+        <option value="1">Foundations and Principles</option>
+        <option value="2">Max Effort Method</option>
+        <option value="3">Dynamic Effort Method</option>
+        <option value="4">Repeated Effort / Accessories</option>
+        <option value="5">Programming and Template Design</option>
+        <option value="6">Biomechanics and Equipment</option>
+        <option value="7">Special Populations</option>
+        <option value="8">Scenario-Based Application</option>
+      </select>
+      <button class="btn btn-primary" type="button" id="fc-start-btn" style="margin-top:0.75rem;width:100%">Start Flashcards</button>
+    </div>
+  </div>
+  <div class="mode-card" role="button" tabindex="0" id="qz-mode-btn">
+    <span class="mode-icon">&#x23F1;</span>
+    <h3>Quick Quiz</h3>
+    <p>10-30 questions with instant feedback. Choose your count and section. Timed.</p>
+  </div>
+  <div class="mode-card" role="button" tabindex="0" id="ft-mode-btn">
+    <span class="mode-icon">&#x1F4DD;</span>
+    <h3>Full Practice Test</h3>
+    <p>All 85 questions. Graded with section breakdown. The real deal.</p>
+  </div>
+  <div class="mode-card" role="button" tabindex="0" id="review-mode-btn" style="display:none">
+    <span class="mode-icon">&#x1F504;</span>
+    <h3>Review Missed</h3>
+    <p>Drill the questions you've gotten wrong. Targeted practice.</p>
+    <span class="mode-badge" id="missedCount">0 to review</span>
+  </div>
+</div>
+<div id="flashcard-panel" class="mode-panel"></div>
+<div id="quiz-panel" class="mode-panel"></div>
+<div id="test-panel" class="mode-panel"></div>
+<div id="review-panel" class="mode-panel"></div>
+
+<script>
+// =======================================
+// DATA
+// =======================================
+var SECTIONS = {
+  1: "Foundations and Principles",
+  2: "Max Effort Method",
+  3: "Dynamic Effort Method",
+  4: "Repeated Effort / Accessories",
+  5: "Programming and Template Design",
+  6: "Biomechanics and Equipment",
+  7: "Special Populations",
+  8: "Scenario-Based Application"
+};
+
+var QUESTIONS = [
+  // SECTION 1: FOUNDATIONS
+  {id:1,s:1,type:"mc",q:"The Conjugate Method is best described as which type of periodization system?",opts:["Linear periodization with planned peaks","Block periodization with sequential phases","Concurrent periodization that trains multiple qualities simultaneously","Undulating periodization with random variation"],ans:2,exp:"The Conjugate Method is a concurrent system, meaning multiple athletic qualities (absolute strength, speed/power, and hypertrophy) are trained simultaneously every week throughout the year."},
+  {id:2,s:1,type:"mc",q:"Which three training methods form the foundation of the Conjugate system?",opts:["Hypertrophy, strength, and peaking","Max effort, dynamic effort, and repeated effort","Speed, power, and endurance","Concentric, eccentric, and isometric"],ans:1,exp:"The three pillars are: Max Effort (lifting maximal loads), Dynamic Effort (lifting sub-maximal loads at maximal speed), and Repeated Effort (accumulating volume through accessory work)."},
+  {id:3,s:1,type:"mc",q:"Louie Simmons drew primary influence for the Conjugate Method from the training systems of which countries?",opts:["United States and Great Britain","China and Japan","Germany and Finland","Soviet Union (Russia) and Bulgaria"],ans:3,exp:"Louie combined the Bulgarian system of frequent maximal lifting with Soviet sports science principles (Verkhoshansky and Zatsiorsky on speed and special exercises)."},
+  {id:4,s:1,type:"tf",q:"In the Conjugate system, athletes follow an off-season/in-season model where strength and speed are trained in separate phases throughout the year.",ans:false,exp:"The Conjugate Method specifically rejects training qualities in separate phases. Strength, speed, and hypertrophy are trained concurrently every single week, year-round."},
+  {id:5,s:1,type:"mc",q:'What is the "law of accommodation" as it relates to the Conjugate Method?',opts:["The response of a biological object to a constant stimulus decreases over time","Athletes must gradually increase weight to build strength","Rest periods must increase as loads get heavier","The body accommodates to heavier weights by building more muscle"],ans:0,exp:"The law of accommodation (from Soviet sports science) states that the response to a constant stimulus decreases over time. This is the primary reason exercises are rotated frequently."},
+  {id:6,s:1,type:"mc",q:'What is the primary purpose of "accommodating resistance" (bands and chains) in the Conjugate system?',opts:["To make the weight lighter at the bottom of the lift","To increase time under tension for hypertrophy","To match the resistance curve to the strength curve so the lifter must accelerate throughout the full range of motion","To reduce joint stress at the top of the lift"],ans:2,exp:"Bands and chains increase load through the range of motion. Since a lifter is mechanically stronger at lockout, this prevents deceleration and forces continued acceleration throughout the rep."},
+  {id:7,s:1,type:"mc",q:"A key criticism of linear periodization that the Conjugate Method aims to solve is:",opts:["Linear periodization builds too much muscle mass","Qualities trained early in a linear cycle (such as hypertrophy) detrain as the athlete shifts focus to later phases (such as peaking)","Linear periodization requires too much equipment","Linear periodization is too complex to program"],ans:1,exp:"In linear periodization, by the time you peak, the muscle built months ago has begun to detrain. Conjugate addresses this by training all qualities concurrently."},
+  {id:8,s:1,type:"tf",q:"In the Conjugate system, approximately 80% of total training volume comes from accessory (repeated effort) work, not from the main max effort or dynamic effort lifts.",ans:true,exp:"Westside Barbell has stated that roughly 80% of training volume comes from accessory exercises. The ME and DE work provides the primary stimulus, but the bulk happens through repeated effort accessories."},
+  {id:9,s:1,type:"mc",q:"Louie Simmons is credited with inventing which piece of training equipment?",opts:["The Reverse Hyper machine","The safety squat bar","The glute-ham raise bench","Resistance bands for barbell training"],ans:0,exp:"Louie Simmons invented and patented the Reverse Hyper machine after suffering two broken vertebrae. He used it as a rehabilitation tool and it became a Westside staple."},
+  {id:10,s:1,type:"tf",q:"The Conjugate Method requires athletes to test their competition squat, bench press, and deadlift 1RMs every week.",ans:false,exp:"Athletes rarely test competition lifts in training. They rotate through variations (box squats, floor press, rack pulls, good mornings) and max out on those. Competition lifts are reserved for the platform."},
+  // SECTION 2: MAX EFFORT
+  {id:11,s:2,type:"mc",q:"What is the target intensity range for max effort work in the Conjugate system?",opts:["70-80% of 1RM for 5-8 reps","90%+ of 1RM for 1-3 reps","80-85% of 1RM for 3-5 reps","100% of 1RM for singles only"],ans:1,exp:"Max effort work targets loads at 90% or above for 1-3 repetitions to recruit the largest motor units."},
+  {id:12,s:2,type:"mc",q:"How frequently should max effort exercise variations be rotated?",opts:["Every 6-8 weeks","Every 4 weeks","Every 1-3 weeks","Only when the athlete stops making progress"],ans:2,exp:"ME exercises are typically rotated every 1-3 weeks. This prevents accommodation and reduces overuse injury risk."},
+  {id:13,s:2,type:"mc",q:"The primary physiological purpose of max effort training is to:",opts:["Increase muscular endurance and work capacity","Develop muscle hypertrophy in prime movers","Improve cardiovascular conditioning under load","Recruit the largest motor units and improve neuromuscular efficiency"],ans:3,exp:"The max effort method recruits the highest-threshold motor units, which can only be activated under near-maximal loading."},
+  {id:14,s:2,type:"tf",q:"Good mornings are considered a legitimate max effort lower body exercise in the Conjugate system.",ans:true,exp:"Good mornings (arched back, round back, suspended, seated, with specialty bars) are a staple ME lower exercise at Westside. They are typically performed for max triples or fives."},
+  {id:15,s:2,type:"mc",q:"Which of the following is NOT a common max effort lower body exercise in the Conjugate system?",opts:["Barbell hip thrust","Low box squat with safety squat bar","Rack pull from below the knee","Cambered bar good morning"],ans:0,exp:"Hip thrusts are not a traditional ME movement in the Conjugate system. The standard ME lower rotation includes squat variations, deadlift variations, and good mornings."},
+  {id:16,s:2,type:"mc",q:"How many max effort training days are typically programmed per week?",opts:["One","Two (one upper, one lower)","Three (upper, lower, and full body)","Four (two upper, two lower)"],ans:1,exp:"The standard template has two ME days: one upper (bench variations) and one lower (squat/deadlift variations), each paired with a DE day."},
+  {id:17,s:2,type:"mc",q:"When working up to a max effort single, which approach is correct?",opts:["Jump straight from warm-up to an attempted 1RM","Perform multiple sets of 5 at increasing weights, then a single","Work up in progressive singles or small sets, making reasonable jumps, to a daily max","Perform a calculated percentage-based pyramid"],ans:2,exp:"The lifter works up progressively with singles, taking reasonable jumps to find a daily max. This is auto-regulated based on how the weight moves that day."},
+  {id:18,s:2,type:"tf",q:"In the Conjugate system, if you hit a new personal record on a max effort exercise, you should attempt an even heavier weight on the same day to test your ceiling.",ans:false,exp:"The goal is to hit the day's max cleanly, take the win, and move to accessory work. Grinding through multiple failed attempts increases injury risk and fatigue."},
+  {id:19,s:2,type:"mc",q:"Which of the following is a common max effort upper body exercise?",opts:["Dumbbell lateral raise","Cable crossover","Pec deck machine","Floor press with chains"],ans:3,exp:"Floor press (with or without chains/bands) is a classic ME upper exercise. It limits range of motion to train lockout strength and removes the stretch reflex."},
+  {id:20,s:2,type:"mc",q:"Why does the Conjugate system avoid repeatedly maxing on the competition squat, bench, and deadlift in training?",opts:["Because the competition lifts are not effective for building strength","To avoid accommodation and overuse injuries from identical loading patterns at maximal intensity","Because specialty bar exercises are always superior","Because Westside athletes only train with bands and chains"],ans:1,exp:"Repeatedly maxing on the same lift causes accommodation and increases overuse injury risk. Rotating variations keeps the athlete adapting and healthy."},
+  // SECTION 3: DYNAMIC EFFORT
+  {id:21,s:3,type:"mc",q:"What is the primary goal of dynamic effort training?",opts:["Building maximal absolute strength","Increasing muscular hypertrophy","Developing explosive power and rate of force development","Improving muscular endurance under moderate loads"],ans:2,exp:'Dynamic effort training improves rate of force development and explosive power. Louie described ME as "building the engine" and DE as "building the transmission."'},
+  {id:22,s:3,type:"mc",q:"What are the standard set and rep schemes for dynamic effort lower body (squat) training?",opts:["5 sets of 5 reps","10-12 sets of 2 reps","3 sets of 10 reps","6 sets of 4 reps"],ans:1,exp:"DE lower body work (typically box squats) is performed for 10-12 sets of 2 reps at maximum speed with short rest periods."},
+  {id:23,s:3,type:"mc",q:"What are the standard set and rep schemes for dynamic effort upper body (bench press) training?",opts:["9 sets of 3 reps","12 sets of 2 reps","5 sets of 5 reps","6 sets of 6 reps"],ans:0,exp:"DE bench press is performed for 9 sets of 3 reps with 45-60 second rest periods. Three reps are used because the bench has a shorter ROM."},
+  {id:24,s:3,type:"mc",q:"In a standard 3-week DE lower wave, how are total intensities structured?",opts:["50%, 50%, 50% (same all three weeks)","85%, 80%, 75% (descending)","60%, 70%, 80% (5% jumps)","75%, 80%, 85% (ascending in 5% increments)"],ans:3,exp:"A standard 3-week DE lower wave ascends: 75% total in Week 1, 80% in Week 2, 85% in Week 3. These include bar weight PLUS band/chain tension."},
+  {id:25,s:3,type:"mc",q:"In a DE lower session at 75% total intensity using bands, a typical breakdown would be:",opts:["75% bar weight, 0% band tension","50% bar weight, 25% band tension","25% bar weight, 50% band tension","40% bar weight, 35% band tension"],ans:1,exp:"Standard approach: 50% bar weight + 25% accommodating resistance = 75% total in Week 1. Week 2: 55% + 25% = 80%. Week 3: 60% + 25% = 85%."},
+  {id:26,s:3,type:"tf",q:"Bar speed is the most important indicator of whether dynamic effort work is being performed correctly.",ans:true,exp:"On DE day, bar speed is the number one priority. If the bar slows down, the weight is too heavy for speed work. Every rep must be maximally explosive."},
+  {id:27,s:3,type:"mc",q:"What is the recommended rest period between sets during dynamic effort squat training?",opts:["3-5 minutes","2-3 minutes","45-60 seconds","15-30 seconds"],ans:2,exp:"DE squat sets use short rest intervals of 45-60 seconds. All 12 sets should be completed in roughly 20-25 minutes."},
+  {id:28,s:3,type:"mc",q:"How do chains differ from bands as accommodating resistance?",opts:["Chains add linear resistance as they leave the floor, while bands create exponentially increasing tension and also accelerate the eccentric","Chains are only used for upper body and bands are only for lower body","They function identically; the choice is purely aesthetic","Bands add linear resistance while chains create exponential resistance"],ans:0,exp:"Chains add weight linearly as links leave the floor. Bands create exponentially increasing tension and also pull the bar down faster on the eccentric phase."},
+  {id:29,s:3,type:"tf",q:"Dynamic effort training sessions should be scheduled the day immediately before a max effort session for the same muscle group.",ans:false,exp:"Approximately 72 hours should separate DE and ME sessions for the same muscle group. Example: ME Lower Monday, DE Lower Friday."},
+  {id:30,s:3,type:"mc",q:"For dynamic effort upper body, the typical total training intensity (bar weight + accommodating resistance) falls in what range?",opts:["30-40%","75-85%","85-95%","50-60%"],ans:3,exp:"DE upper body work uses 50-60% total intensity. This is lower than DE lower (75-85%) to maintain the bar speed required for explosive pressing power."},
+  {id:31,s:3,type:"mc",q:"After completing a 3-week dynamic effort wave, the standard protocol is to:",opts:["Take a full deload week off","Continue increasing intensity to 90%+","Reset the wave, typically changing the bar variation or type of accommodating resistance","Switch entirely to max effort work for 3 weeks"],ans:2,exp:"After a 3-week wave, reset to Week 1 percentages but change the stimulus: different bar, switch from bands to chains, or adjust grip/stance."},
+  // SECTION 4: REPEATED EFFORT / ACCESSORIES
+  {id:32,s:4,type:"mc",q:"What does GPP stand for in Conjugate training?",opts:["Gradual Progressive Periodization","General Physical Preparedness","Guided Performance Programming","General Postural Positioning"],ans:1,exp:"GPP = General Physical Preparedness. It refers to the athlete's overall fitness base including conditioning, work capacity, and general muscular development."},
+  {id:33,s:4,type:"mc",q:"What is the primary GPP tool used at Westside Barbell?",opts:["Sled dragging","Treadmill running","Rowing machine intervals","Barbell complexes"],ans:0,exp:"Sled dragging is the most commonly prescribed GPP method. It builds work capacity without creating significant eccentric stress or muscle soreness."},
+  {id:34,s:4,type:"mc",q:"How many accessory exercises are typically performed after the main movement?",opts:["1-2","2-3","3-6","7-10"],ans:2,exp:"Athletes typically perform 3-6 accessory exercises after the main ME or DE movement, depending on training experience and recovery capacity."},
+  {id:35,s:4,type:"mc",q:"On a max effort lower body day, which muscle groups should be prioritized in accessory work?",opts:["Chest, front delts, and biceps","Calves, forearms, and neck","Quads only, with isolation machines","Glutes, hamstrings, low back/erectors, lats, and abdominals"],ans:3,exp:"ME Lower accessories target: glutes, hamstrings, low back (erectors), lats, traps, and abdominals. Exercise selection addresses identified weak points."},
+  {id:36,s:4,type:"mc",q:"On a max effort upper body day, which muscle groups should be prioritized in accessory work?",opts:["Triceps, upper back, lats, shoulders (all three heads), and abdominals","Biceps, forearms, and chest isolation","Lower back and hamstrings","Quads and calves"],ans:0,exp:"ME Upper accessories prioritize: triceps, upper back, lats, all three deltoid heads, traps, and abdominals. Strong triceps and upper back are essential to a big bench."},
+  {id:37,s:4,type:"tf",q:"In the Conjugate system, accessory exercise selection should exclusively target identified weaknesses, ignoring all other muscle groups.",ans:false,exp:"Overly narrow focus on weaknesses creates new weaknesses through detraining. Accessories should address weaknesses AND maintain development of all relevant muscle groups."},
+  {id:38,s:4,type:"mc",q:"What distinguishes SPP (Special Physical Preparedness) from GPP?",opts:["SPP uses only bodyweight, while GPP uses external load","SPP targets sport-specific qualities for the competition lifts, while GPP builds the general fitness foundation","SPP is only done in the off-season","They are interchangeable terms"],ans:1,exp:"GPP = general fitness and work capacity (sled drags, extra workouts). SPP = qualities directly transferable to competition lifts (reverse hypers, GHRs, belt squats)."},
+  {id:39,s:4,type:"mc",q:"Why are sled drags considered superior to many other forms of conditioning for powerlifters?",opts:["They are the hardest conditioning exercise available","They directly mimic the squat pattern","They are concentric-only, producing minimal eccentric muscle damage and soreness while building work capacity","They replace the need for lower body accessory work"],ans:2,exp:"Sled drags are primarily concentric. Minimal eccentric loading means very little soreness and quick recovery, ideal for extra workouts."},
+  {id:40,s:4,type:"tf",q:"Reverse hypers, glute-ham raises (GHRs), and belt squats are considered staple accessory exercises in Conjugate training.",ans:true,exp:"These three are foundational. Reverse hypers provide spinal traction + posterior chain work. GHRs build hamstrings and glutes. Belt squats load legs without spinal compression."},
+  // SECTION 5: PROGRAMMING
+  {id:41,s:5,type:"mc",q:"What is the standard 4-day Conjugate training template?",opts:["Mon: DE Upper, Tue: DE Lower, Thu: ME Upper, Fri: ME Lower","Mon: ME Lower, Wed: ME Upper, Fri: DE Lower, Sat: DE Upper","Mon: ME Upper, Wed: ME Lower, Fri: DE Upper, Sat: DE Lower","Mon: DE Lower, Wed: DE Upper, Fri: ME Lower, Sat: ME Upper"],ans:1,exp:"Standard Westside template: Monday = ME Lower, Wednesday = ME Upper, Friday = DE Lower, Saturday = DE Upper. 72 hours between ME and DE for same muscle group."},
+  {id:42,s:5,type:"mc",q:"Why is there approximately 72 hours between ME and DE sessions for the same muscle group?",opts:["It takes 72 hours for muscle protein synthesis to complete","This is an arbitrary scheduling convenience","It allows adequate CNS and muscular recovery while maintaining training frequency","The athlete needs time to switch equipment"],ans:2,exp:"72 hours provides sufficient CNS and muscular recovery. Each muscle group is trained twice per week (once heavy, once fast), optimizing the frequency-recovery balance."},
+  {id:43,s:5,type:"mc",q:"How should a beginner approach the Conjugate Method compared to an advanced lifter?",opts:["Only use ME training until strong enough for speed work","Do the exact same program as advanced lifters","Only train 2 days per week","Use fewer variations, less accommodating resistance, and focus on movement patterns while still using the ME/DE framework"],ans:3,exp:"Beginners use the same framework but simplified: fewer specialty bars, less band/chain usage, more focus on technique, possibly ME triples/fives instead of true maximal singles."},
+  {id:44,s:5,type:"tf",q:"In the standard template, the exact training days can be adjusted as long as the spacing between ME and DE sessions for the same muscle group is maintained.",ans:true,exp:"The specific days are not critical. What matters is maintaining ~72 hours between ME and DE for the same body part."},
+  {id:45,s:5,type:"mc",q:"When designing an ME lower rotation, approximately how often should a given exercise variation reappear?",opts:["Approximately every 5-9 weeks","Every 2 weeks","Every 12-16 weeks","Never; an exercise should only be used once"],ans:0,exp:"With 1-3 week rotation and 3-5 variations in the pool, each exercise reappears roughly every 5-9 weeks. Louie referenced retesting exercises approximately every 9 weeks."},
+  {id:46,s:5,type:"mc",q:"A properly designed Conjugate program for a raw intermediate lifter would include all of the following EXCEPT:",opts:["Box squats on dynamic effort day","A dedicated hypertrophy phase lasting 6-8 weeks before beginning speed work","Rotating max effort variations weekly or bi-weekly","3-6 accessory exercises after the main movement"],ans:1,exp:"A dedicated hypertrophy-only phase contradicts the Conjugate philosophy of concurrent training. Hypertrophy is achieved through repeated effort work EVERY week."},
+  {id:47,s:5,type:"mc",q:'What role do "extra workouts" or "restoration sessions" play in Conjugate programming?',opts:["Full additional training sessions with heavy compound lifts","Only needed for steroid-enhanced athletes","Brief, low-intensity sessions (sled drags, reverse hypers, light band work) that promote blood flow, recovery, and GPP","They replace main training days during a deload"],ans:2,exp:"Extra workouts are short (20-40 min), low-intensity sessions focused on recovery and GPP. They promote blood flow without adding significant training stress."},
+  {id:48,s:5,type:"tf",q:"The Conjugate system requires a formal deload week every 4th week, similar to a 3-weeks-on, 1-week-off structure.",ans:false,exp:"No rigid deload schedule. Exercise rotation and auto-regulation manage recovery. Deloads are implemented as needed based on athlete readiness, not a fixed calendar."},
+  {id:49,s:5,type:"mc",q:"In the Conjugate system, training volume is primarily managed through:",opts:["The number and selection of accessory exercises, adjusted based on recovery capacity","A fixed percentage-based volume prescription that increases linearly each week","Reducing the number of max effort attempts","Heart rate monitoring during sets"],ans:0,exp:"Since ME and DE follow relatively fixed set/rep schemes, the main volume lever is accessory work. An athlete with good recovery does 5-6 accessories; a fatigued one does 3."},
+  {id:50,s:5,type:"mc",q:"A Conjugate training session (warm-up, main movement, and accessories) should typically last:",opts:["30-45 minutes","2.5-3 hours","3-4 hours","60-90 minutes"],ans:3,exp:"A well-run session takes approximately 60-90 minutes. Longer suggests rest periods are too long or too many accessories."},
+  // SECTION 6: BIOMECHANICS & EQUIPMENT
+  {id:51,s:6,type:"mc",q:"What is the primary biomechanical purpose of using a cambered (buffalo) bar for squatting?",opts:["It reduces the total weight lifted","It shifts the center of gravity lower/forward and increases upper back demand","It eliminates the need for a spotter","It is used exclusively for bench pressing"],ans:1,exp:"The cambered bar shifts the load's center of gravity, creating additional instability and increasing demand on the upper back and trunk stabilizers."},
+  {id:52,s:6,type:"mc",q:"How do bands alter the strength curve of a barbell lift?",opts:["They reduce the load at lockout where the lifter is strongest","They provide accommodating resistance, increasing load as the lifter moves into a stronger leverage position","They only add resistance at the bottom of the lift","They have no measurable effect on force production"],ans:1,exp:"Bands stretch as the bar rises, adding resistance at the top where leverage is best. This accommodating resistance forces maximal force output through the entire ROM."},
+  {id:53,s:6,type:"tf",q:"Chains provide a form of accommodating resistance because links deload onto the floor at the bottom of the lift and reload at the top.",ans:true,exp:"As the bar descends, chain links pile on the floor, reducing load at the bottom. As the bar rises, links lift off, progressively adding weight through the stronger range."},
+  {id:54,s:6,type:"mc",q:"What is the purpose of the safety squat bar (SSB) in Conjugate training?",opts:["It is only used for calf raises","It shifts load forward, heavily stressing the upper back, anterior core, and quads while reducing shoulder stress","It is a direct replacement for the competition squat bar at all times","It reduces the need for any accessory work"],ans:1,exp:"The SSB's forward-shifted center of mass increases demand on the upper back and anterior core, and it reduces shoulder stress since the lifter doesn't externally rotate."},
+  {id:55,s:6,type:"mc",q:"Why does Westside Barbell use a wide stance box squat as the primary DE lower movement?",opts:["It is easier to learn than a free squat","It develops the posterior chain (hips, glutes, hamstrings), teaches proper hip mechanics, builds starting strength from a dead stop, and allows consistent depth","It places more stress on the knees for quad development","It eliminates the stretch reflex, which is undesirable"],ans:1,exp:"Wide stance box squats load the posterior chain, enforce consistent depth, develop starting strength (pause on box breaks the eccentric-concentric chain), and teach hip-dominant mechanics."},
+  {id:56,s:6,type:"mc",q:"What is the 'sticking point' in a lift, and why is it important in Conjugate programming?",opts:["The point where the bar literally sticks to the lifter's body","The weakest point in the range of motion where a lift is most likely to fail; it guides exercise selection to address the limiting muscle group","The moment the lifter decides to quit","The point at which accommodating resistance is removed"],ans:1,exp:"The sticking point reveals which muscles or positions are weakest. ME variation selection and accessory choices target the specific range where failure occurs."},
+  {id:57,s:6,type:"mc",q:"A lifter fails a bench press 3 inches off the chest. Which muscle group is most likely the weak link?",opts:["Triceps","Upper back and lats","Chest and anterior deltoids","Forearms"],ans:2,exp:"Failure near the chest indicates weakness in the prime movers at that range: the pectorals and anterior deltoids. Triceps take over more as the lift approaches lockout."},
+  {id:58,s:6,type:"mc",q:"A lifter fails a bench press at lockout. Which muscle group is most likely the weak link?",opts:["Pectorals","Hamstrings","Triceps","Biceps"],ans:2,exp:"Lockout failure is almost always a triceps issue. The triceps are the primary movers in the top half of the bench press. Board presses and floor presses address this."},
+  {id:59,s:6,type:"mc",q:"The reverse hyper machine, invented by Louie Simmons, primarily targets which muscles while also providing what unique benefit?",opts:["Quadriceps; it improves vertical jump","Glutes, hamstrings, and spinal erectors; it provides spinal traction/decompression on the eccentric phase","Biceps and forearms; it improves grip strength","Calves; it increases ankle mobility"],ans:1,exp:"The reverse hyper strengthens the entire posterior chain (glutes, hamstrings, erectors) while the pendulum swing on the eccentric provides spinal decompression/traction."},
+  {id:60,s:6,type:"mc",q:"Which exercise is recommended for strengthening the VMO (vastus medialis oblique) and promoting knee health in Conjugate training?",opts:["Backward sled drag","Leg extension machine","Front squat only","Calf raises"],ans:0,exp:"Backward sled drags emphasize knee extension through a full ROM, specifically targeting the VMO. They are low-impact and commonly prescribed for knee health and prehab."},
+  // SECTION 7: SPECIAL POPULATIONS & ADAPTATIONS
+  {id:61,s:7,type:"mc",q:"How should dynamic effort percentages be adjusted for raw (unequipped) lifters compared to equipped lifters?",opts:["Raw lifters use the same percentages as equipped lifters","Raw lifters use lower percentages (40-50%)","Raw lifters typically use higher bar weight (60-70% of 1RM) because they don't get carryover from supportive gear","Raw lifters should not do dynamic effort work"],ans:2,exp:"Equipped lifters get significant carryover from suits/shirts, so 50-60% bar weight is enough. Raw lifters need 60-70% bar weight to produce sufficient force output since they have no gear assistance."},
+  {id:62,s:7,type:"mc",q:"When adapting the Conjugate Method for an athlete in a sport other than powerlifting (e.g., football, MMA), which adjustment is MOST important?",opts:["Eliminate all max effort work to prevent injury","Replace barbell exercises with machine-only training","Adjust exercise selection and volume to complement sport-specific demands and the competitive schedule","Use only bodyweight exercises"],ans:2,exp:"The Conjugate framework adapts to any sport by selecting exercises that address sport-specific needs, managing volume around practice/competition schedules, and prioritizing relevant movement patterns."},
+  {id:63,s:7,type:"tf",q:"The Conjugate Method can only be applied to competitive powerlifters and has no application to general fitness or other sports.",ans:false,exp:"The principles (concurrent development of strength qualities, rotating stressors, addressing weaknesses) apply universally. Louie trained athletes from NFL, UFC, track and field, and more."},
+  {id:64,s:7,type:"mc",q:"For an older athlete (40+) using the Conjugate system, which modification is most appropriate?",opts:["Eliminate all heavy lifting and only do cardio","Extend ME rotations (use each variation for 2-3 weeks), slightly reduce overall volume, and increase recovery work","Use the exact same program as a 22-year-old elite lifter","Only train once per week"],ans:1,exp:"Older athletes need longer to adapt and recover. Extending ME rotations gives more time with each variation. Reduced accessories and more recovery work (reverse hypers, sled drags) support longevity."},
+  {id:65,s:7,type:"mc",q:"How might the Conjugate Method be adapted for a female athlete compared to a male athlete of similar training age?",opts:["Women should only do light weight and high reps","No fundamental changes to the framework are needed; adjust loads to individual capacity and consider that women often tolerate higher relative volumes and recover faster between sets","Women cannot use max effort training","Women should only use machines, never free weights"],ans:1,exp:"The Conjugate framework is gender-neutral. Women use the same methods. Many female athletes tolerate higher relative training volumes and shorter rest periods. Loads are individualized."},
+  {id:66,s:7,type:"tf",q:"When training athletes for sports like football or combat sports using the Conjugate Method, dynamic effort work is particularly valuable because it develops rate of force development (explosive power).",ans:true,exp:"DE work trains the nervous system to recruit motor units rapidly. For athletes who need explosiveness (football linemen, fighters, sprinters), DE is arguably the most important method."},
+  {id:67,s:7,type:"mc",q:"A novice lifter wants to use the Conjugate system. What is the most appropriate modification?",opts:["Tell them they must train with linear progression for at least 5 years first","Have them use the same framework but with fewer variations, higher rep ME work (triples or fives instead of singles), less accommodating resistance, and emphasis on movement quality","Give them the exact advanced program since the system is self-regulating","Only allow them to do accessory work until they are strong enough for main lifts"],ans:1,exp:"Novices benefit from the variety and concurrent development but need simplified execution: fewer specialty bars, ME triples/fives to develop technique under load, and less band/chain usage."},
+  // SECTION 8: SCENARIO-BASED APPLICATION
+  {id:68,s:8,type:"mc",q:"A lifter consistently misses squats just above parallel. Using Conjugate principles, which ME variation would best address this weakness?",opts:["High-bar close-stance squat to a high box","Low box squat (below parallel) or Anderson squats from pins at the sticking point","Leg press","Quarter squats with supramaximal weight"],ans:1,exp:"Low box squats and Anderson squats from pins at the specific failing height force the lifter to develop strength precisely where they are weakest. This is targeted weak-point training."},
+  {id:69,s:8,type:"mc",q:"An athlete's deadlift is strong off the floor but they cannot lock out. Which combination of exercises best addresses this?",opts:["Deficit deadlifts and speed pulls","Rack pulls from knee height, block pulls, and heavy hip extensions (reverse hyper, pull-throughs)","Leg curls and calf raises","Paused deadlifts from the floor"],ans:1,exp:"Lockout weakness indicates weak glutes, upper back, or hips. Rack/block pulls train the specific weak range. Reverse hypers and pull-throughs build the hip extension strength to finish the lift."},
+  {id:70,s:8,type:"mc",q:"A powerlifter reports feeling slow and sluggish despite hitting adequate numbers on max effort day. What Conjugate principle should the coach prioritize?",opts:["Add more max effort work","Increase dynamic effort volume and ensure bar speed is being tracked; consider adjusting band tension or percentages","Remove all training for two weeks","Switch to a completely different training system"],ans:1,exp:"Feeling slow suggests rate of force development is lagging. DE work is the solution. Ensure percentages are correct, bar speed is maximal, and accommodating resistance is appropriate."},
+  {id:71,s:8,type:"mc",q:"A lifter has been rotating ME exercises weekly but has not improved any variation in 6 weeks. What is the most likely programming issue?",opts:["They need to rotate exercises more frequently","Their accessory work is not adequately addressing weak points, OR they need to reassess exercise selection, recovery, or nutrition","They should stop doing max effort work entirely","This is normal and expected in Conjugate training"],ans:1,exp:"Stagnation across all ME variations suggests systemic issues: poor accessory selection (not addressing weak points), insufficient recovery, nutritional deficiency, or poor exercise choices in the rotation."},
+  {id:72,s:8,type:"mc",q:"During a DE lower session, a coach notices the lifter's bar speed has noticeably slowed on sets 8-12 of box squats. What should the coach do?",opts:["Add more weight to build mental toughness","Stop the sets; slow bar speed defeats the purpose of DE work. Investigate the cause (too heavy, insufficient rest, accumulated fatigue)","Ignore it since completing all 12 sets is more important","Have the lifter switch to max effort work instead"],ans:1,exp:"The entire point of DE work is maximal bar speed. If speed drops, the training effect shifts away from rate of force development. Cut the sets short and reduce load or add rest next session."},
+  {id:73,s:8,type:"mc",q:"You are programming for a raw lifter whose bench press stalls at 3 inches off the chest. Their DE bench is currently at 50% + mini bands. What changes would you make?",opts:["Increase DE percentage to 80%","Add heavy board presses to ME rotation and increase chest/delt accessory volume. Keep DE percentages moderate but ensure explosive intent","Remove all bench pressing and only do push-ups","Switch to a linear periodization program"],ans:1,exp:"Stalling off the chest = chest/delt weakness. Add ME variations that overload that range (close-grip, wide-grip, floor press for the pause). Increase accessory volume for pecs and delts. DE stays speed-focused."},
+  {id:74,s:8,type:"mc",q:"An athlete competing in the off-season wants to add 10 lbs of muscle while maintaining strength. How would you modify their Conjugate program?",opts:["Abandon Conjugate for a bodybuilding split","Maintain ME and DE work as the foundation but increase accessory volume (repeated effort), add an extra training day focused on hypertrophy, and increase caloric intake","Only do high-rep sets of 20+ on every exercise","Reduce training to twice per week"],ans:1,exp:"The Conjugate system handles this by increasing the repeated effort (accessory) component. More sets of 8-15 on accessories, possibly an additional session, while keeping ME/DE as the strength backbone."},
+  {id:75,s:8,type:"mc",q:"A lifter complains of chronic low back pain that worsens after ME squat days. Which Conjugate-specific interventions should a coach consider?",opts:["Tell them to push through the pain","Incorporate more reverse hyper work for spinal decompression, temporarily use ME variations that reduce spinal loading (belt squat, SSB), evaluate squat technique, and add targeted core work","Remove all lower body training permanently","Refer them to a doctor and do nothing else"],ans:1,exp:"Reverse hypers provide traction/decompression. Belt squats and SSB reduce direct spinal loading while maintaining training stimulus. Core work and technique evaluation address root causes."},
+  {id:76,s:8,type:"scenario",q:"Design a one-week Conjugate training program for a raw intermediate powerlifter. Include all four training days with main movements, set/rep schemes, and 3-4 accessories per day. Explain your exercise selection rationale.",ans:"sa",exp:"Sample week: Monday (ME Lower): SSB squat to 1RM, then 3x5 Romanian deadlifts, 3x10 reverse hypers, 4x12 GHRs, 3x15 ab wheel. Wednesday (ME Upper): 2-board press to 1RM, then 4x8 DB rows, 4x12 tricep pushdowns, 3x15 face pulls, 3x12 lateral raises. Friday (DE Lower): Box squat 12x2 at 65% + light bands, then 4x6 front squats, 3x10 belt squat, 4x10 inverse curl, sled drag 6 trips. Saturday (DE Upper): Bench 9x3 at 55% + mini bands, then 5x10 DB bench, 4x12 barbell rows, 4x15 tricep extensions, 100 band pull-aparts. Rationale should address weak-point targeting and posterior chain emphasis."},
+  {id:77,s:8,type:"scenario",q:"An athlete transitions from equipped to raw powerlifting. Describe at least three specific programming changes you would make to their Conjugate training and explain why.",ans:"sa",exp:"Key changes: (1) Increase DE bar percentage from 50-60% to 60-70% since there's no gear carryover to supplement bar weight. (2) Add more raw-specific ME variations (close-grip bench, paused squats, conventional deadlifts) since gear changes the strength curve. (3) Increase pec, quad, and hamstring hypertrophy work since gear provides artificial support to these areas. (4) May reduce band tension on DE days since there's no suit to fight against. (5) Potentially add more technique work since raw lifting is more technique-dependent through the full ROM."},
+  {id:78,s:8,type:"scenario",q:"A client who is a high school football lineman (age 17, 2 years training experience) wants to get stronger and more explosive for the upcoming season. Outline how you would apply Conjugate principles to their off-season training. Address any age-specific considerations.",ans:"sa",exp:"Approach: Use the Conjugate framework with modifications. ME work uses triples or fives (not true singles) to build strength safely while reinforcing technique. DE work is critical for explosiveness: box squats and speed bench with light bands. Exercise selection includes sport-specific movements (trap bar deadlift, push press, sled work). Higher GPP volume (sled drags, prowler pushes) to build the conditioning base. Age considerations: prioritize movement quality, conservative loading, longer warm-ups, and recovery education. Monitor for signs of overtraining since a young athlete also has practice, games, and school stress. 3-day template may be more appropriate than 4-day during the season."},
+  {id:79,s:8,type:"scenario",q:"You notice an experienced lifter's squat has stalled at 500 lbs for three months despite rotating ME exercises. Walk through your diagnostic process and propose a solution using Conjugate principles.",ans:"sa",exp:"Diagnostic process: (1) Video analysis: identify where the lift fails (out of hole, mid-range, lockout). (2) Review ME log: are numbers stalling on all variations or just competition squat? If all are stalling, it's systemic. (3) Evaluate DE performance: is bar speed maintained? If speed is dropping, there may be a neurological fatigue issue. (4) Assess accessory progression: are accessory lifts improving? If not, the weak points aren't being addressed. (5) Check recovery markers: sleep, nutrition, stress, bodyweight trends. Solution depends on findings, but common fixes include: adjusting accessory selection to better target the identified sticking point, modifying DE loading, adding an extra recovery session (sled drags + reverse hypers), or addressing a nutrition/recovery deficit."},
+  {id:80,s:8,type:"mc",q:"Which of the following is NOT a legitimate reason to change a max effort exercise variation?",opts:["The lifter has peaked on the current variation (no further PR possible)","The lifter has been using it for 1-3 weeks as planned in the rotation","The lifter simply doesn't enjoy the exercise and wants something more fun","The variation is causing joint pain or aggravating an injury"],ans:2,exp:"Exercise rotation is driven by performance plateaus, programmed rotation schedules, or injury management. Personal preference alone is not a valid reason; discomfort with hard exercises is expected."},
+  {id:81,s:8,type:"mc",q:"A strength coach wants to implement Conjugate for a group of 15 athletes with varying strength levels. What is the most practical approach?",opts:["Write 15 individual programs with completely different exercises","Use a shared template with the same ME/DE structure and exercise selection, but individualize loads, accommodating resistance levels, and accessory prescriptions based on each athlete's needs","Only train the strongest athletes with Conjugate and put the rest on machines","Have all 15 athletes use identical weights"],ans:1,exp:"The Conjugate template scales well for groups. Everyone does the same main movement (e.g., SSB squat on ME day) but loads are individual. Accessory menus can offer choices based on individual weaknesses."},
+  {id:82,s:8,type:"mc",q:"During week 3 of a DE lower wave (85% week), an athlete reports the bar feeling heavy and slow. What is the appropriate coaching response?",opts:["Push through it since it's the last week of the wave","Recognize that 85% represents the TOTAL load including bands/chains (bar weight is only 50-60%), verify the setup is correct, and if bar speed is genuinely compromised, reduce load and reset the wave","Skip DE work entirely that week","Increase the weight to force adaptation"],ans:1,exp:"The 75/80/85% wave refers to total load at lockout (bar + accommodating resistance). If speed drops at week 3, verify band/chain setup. If truly slow, the athlete may need a lighter wave or the percentages need recalculating."},
+  {id:83,s:8,type:"mc",q:"Which of the following best describes the 'conjugate' in Conjugate Method?",opts:["Training only one quality at a time in sequential blocks","The simultaneous (concurrent) development of multiple strength qualities (maximal strength, speed-strength, strength endurance) within the same training week","A specific barbell exercise","Training conjugate (paired) muscle groups in the same session"],ans:1,exp:"'Conjugate' means joined together. The method develops max strength (ME), speed-strength (DE), and muscular endurance/hypertrophy (RE) concurrently, not in separate phases."},
+  {id:84,s:8,type:"mc",q:"Louie Simmons credited which sports science tradition as the foundation for the Conjugate Method?",opts:["Scandinavian endurance training methodology","Soviet/Russian sports science, particularly the work of Verkhoshansky, Zatsiorsky, and Vorobyev","Traditional Chinese martial arts periodization","American football strength coaching from the 1950s"],ans:1,exp:"Louie extensively studied Soviet sports science literature. Zatsiorsky's classification of strength methods, Verkhoshansky's work on special strength, and Vorobyev's research on Olympic lifting formed the theoretical backbone."},
+  {id:85,s:8,type:"mc",q:"What is the single most important principle that distinguishes the Conjugate Method from traditional linear or block periodization?",opts:["Using specialty barbells","Training four days per week","The concurrent development of all strength qualities year-round, eliminating the need for extended phases where one quality is trained at the expense of others","Using box squats"],ans:2,exp:"The core distinction is concurrent training. Linear/block periodization develops qualities sequentially (hypertrophy block, strength block, peaking block), which means some qualities detrain. Conjugate develops everything simultaneously."}
+];
+
+// =======================================
+// LOCAL STORAGE (progress tracking)
+// =======================================
+var Store = {
+  _key: 'conjugate_study_data',
+
+  _default: function() {
+    return {
+      darkMode: false,
+      missedQuestions: {},  // {questionId: missCount}
+      quizHistory: [],     // [{date, score, total, mode, section, timeSeconds}]
+      studyStreak: { lastDate: null, current: 0, longest: 0 },
+      totalSessions: 0
+    };
+  },
+
+  load: function() {
+    try {
+      var raw = localStorage.getItem(this._key);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        // Merge with defaults for forward-compatibility
+        var def = this._default();
+        for (var k in def) {
+          if (!(k in parsed)) parsed[k] = def[k];
+        }
+        return parsed;
+      }
+    } catch(e) {}
+    return this._default();
+  },
+
+  save: function(data) {
+    try { localStorage.setItem(this._key, JSON.stringify(data)); } catch(e) {}
+  },
+
+  get: function() { return this.load(); },
+
+  recordMiss: function(questionId) {
+    var data = this.load();
+    data.missedQuestions[questionId] = (data.missedQuestions[questionId] || 0) + 1;
+    this.save(data);
+  },
+
+  recordCorrect: function(questionId) {
+    var data = this.load();
+    // Reduce miss count but don't delete — keeps weak areas visible
+    if (data.missedQuestions[questionId]) {
+      data.missedQuestions[questionId] = Math.max(0, data.missedQuestions[questionId] - 1);
+      if (data.missedQuestions[questionId] === 0) delete data.missedQuestions[questionId];
+    }
+    this.save(data);
+  },
+
+  recordSession: function(mode, score, total, section, timeSeconds) {
+    var data = this.load();
+    data.quizHistory.push({
+      date: new Date().toISOString(),
+      score: score, total: total,
+      mode: mode, section: section || 'all',
+      timeSeconds: timeSeconds || 0
+    });
+    // Keep last 50 entries
+    if (data.quizHistory.length > 50) data.quizHistory = data.quizHistory.slice(-50);
+    data.totalSessions++;
+
+    // Update streak
+    var today = new Date().toISOString().split('T')[0];
+    if (data.studyStreak.lastDate !== today) {
+      var yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      if (data.studyStreak.lastDate === yesterday) {
+        data.studyStreak.current++;
+      } else {
+        data.studyStreak.current = 1;
+      }
+      data.studyStreak.lastDate = today;
+      if (data.studyStreak.current > data.studyStreak.longest) {
+        data.studyStreak.longest = data.studyStreak.current;
+      }
+    }
+
+    this.save(data);
+    updateStatsBar();
+  },
+
+  getMissedIds: function() {
+    var data = this.load();
+    return Object.keys(data.missedQuestions).map(Number).filter(function(id) {
+      return data.missedQuestions[id] > 0;
+    });
+  },
+
+  setDarkMode: function(on) {
+    var data = this.load();
+    data.darkMode = on;
+    this.save(data);
+  }
+};
+
+// =======================================
+// STATS BAR
+// =======================================
+function updateStatsBar() {
+  var data = Store.get();
+  document.getElementById('streakDisplay').textContent = data.studyStreak.current || 0;
+  document.getElementById('sessionsDisplay').textContent = data.totalSessions || 0;
+
+  var history = data.quizHistory || [];
+  if (history.length > 0) {
+    var sum = 0;
+    history.forEach(function(h) {
+      if (h.total > 0) sum += Math.round((h.score / h.total) * 100);
+    });
+    document.getElementById('avgScoreDisplay').textContent = Math.round(sum / history.length) + '%';
+  } else {
+    document.getElementById('avgScoreDisplay').textContent = '--';
+  }
+
+  // Show/hide review mode card
+  var missedIds = Store.getMissedIds();
+  var reviewCard = document.getElementById('review-mode-btn');
+  if (missedIds.length > 0) {
+    reviewCard.style.display = '';
+    document.getElementById('missedCount').textContent = missedIds.length + ' to review';
+  } else {
+    reviewCard.style.display = 'none';
+  }
+}
+
+// =======================================
+// DARK MODE
+// =======================================
+function applyDarkMode(on) {
+  document.documentElement.setAttribute('data-theme', on ? 'dark' : 'light');
+  var btn = document.getElementById('darkModeBtn');
+  if (btn) btn.textContent = on ? '☀️' : '🌙';
+  var meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = on ? '#0a0a18' : '#1a1a2e';
+}
+
+// =======================================
+// UTILITY FUNCTIONS
+// =======================================
+function shuffle(arr) {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+  return arr;
+}
+
+function showMode(mode) {
+  document.querySelectorAll('.mode-panel').forEach(function(p) { p.style.display = 'none'; });
+  var sel = document.getElementById('mode-selector');
+  var stats = document.getElementById('statsBar');
+  if (mode) {
+    sel.style.display = 'none';
+    if (stats) stats.style.display = 'none';
+    document.getElementById(mode + '-panel').style.display = 'block';
+    window.scrollTo({top: 0});
+  } else {
+    sel.style.display = '';
+    if (stats) stats.style.display = '';
+    var fcSetup = document.getElementById('fc-setup');
+    if (fcSetup) fcSetup.style.display = 'none';
+    updateStatsBar();
+  }
+}
+
+function backToMenu() {
+  showMode(null);
+}
+
+// =======================================
+// FLASHCARD MODE
+// =======================================
+var FC = {
+  deck: [],
+  idx: 0,
+  known: 0,
+  review: 0,
+
+  start: function(sectionFilter) {
+    var pool = QUESTIONS.filter(function(q) { return q.type !== 'scenario'; });
+    if (sectionFilter && sectionFilter !== 'all') {
+      pool = pool.filter(function(q) { return q.s === parseInt(sectionFilter); });
+    }
+    this.deck = shuffle(pool.slice());
+    this.idx = 0;
+    this.known = 0;
+    this.review = 0;
+    showMode('flashcard');
+    this.render();
+  },
+
+  render: function() {
+    var panel = document.getElementById('flashcard-panel');
+    if (this.idx >= this.deck.length) {
+      Store.recordSession('flashcard', this.known, this.deck.length);
+      panel.innerHTML = this.resultsHTML();
+      return;
+    }
+    var q = this.deck[this.idx];
+    var total = this.deck.length;
+    var num = this.idx + 1;
+    var sName = SECTIONS[q.s] || 'Unknown';
+
+    var frontContent = '<div class="fc-section-tag">' + sName + '</div>';
+    frontContent += '<div class="fc-question">' + q.q + '</div>';
+    if (q.type === 'tf') {
+      frontContent += '<div class="fc-hint">True or False?</div>';
+    } else if (q.opts) {
+      frontContent += '<div class="fc-options">';
+      var letters = ['A','B','C','D'];
+      q.opts.forEach(function(opt, i) {
+        frontContent += '<div class="fc-option">' + letters[i] + ') ' + opt + '</div>';
+      });
+      frontContent += '</div>';
+    }
+
+    var backContent = '<div class="fc-section-tag">' + sName + '</div>';
+    backContent += '<div class="fc-answer-label">Answer</div>';
+    if (q.type === 'tf') {
+      backContent += '<div class="fc-answer-value">' + (q.ans ? 'TRUE' : 'FALSE') + '</div>';
+    } else {
+      var letters2 = ['A','B','C','D'];
+      backContent += '<div class="fc-answer-value">' + letters2[q.ans] + ') ' + q.opts[q.ans] + '</div>';
+    }
+    backContent += '<div class="fc-explanation">' + q.exp + '</div>';
+
+    panel.innerHTML =
+      '<div class="fc-header">' +
+        '<button class="btn btn-sm" onclick="backToMenu()">Back to Menu</button>' +
+        '<div class="fc-progress">' + num + ' / ' + total + '</div>' +
+        '<div class="fc-score">Known: ' + this.known + ' | Review: ' + this.review + '</div>' +
+      '</div>' +
+      '<div class="fc-progress-bar"><div class="fc-progress-fill" style="width:' + ((num/total)*100) + '%"></div></div>' +
+      '<div class="fc-card-container" id="fcFlipArea" role="button" tabindex="0">' +
+        '<div class="fc-card" id="fcCard">' +
+          '<div class="fc-front">' + frontContent + '</div>' +
+          '<div class="fc-back">' + backContent + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="fc-hint-tap">Tap card to flip</div>' +
+      '<div class="fc-actions">' +
+        '<button class="btn btn-review" type="button" onclick="FC.mark(\'review\')">Needs Review</button>' +
+        '<button class="btn btn-known" type="button" onclick="FC.mark(\'known\')">Got It</button>' +
+      '</div>';
+    var flipArea = document.getElementById('fcFlipArea');
+    if (flipArea) {
+      flipArea.addEventListener('click', function() { FC.flip(); });
+    }
+  },
+
+  flip: function() {
+    var card = document.getElementById('fcCard');
+    if (card) card.classList.toggle('flipped');
+  },
+
+  mark: function(type) {
+    var q = this.deck[this.idx];
+    if (type === 'known') {
+      this.known++;
+      Store.recordCorrect(q.id);
+    } else {
+      this.review++;
+      Store.recordMiss(q.id);
+    }
+    this.idx++;
+    this.render();
+  },
+
+  resultsHTML: function() {
+    var total = this.deck.length;
+    var pct = total > 0 ? Math.round((this.known / total) * 100) : 0;
+    return '<div class="fc-header">' +
+        '<button class="btn btn-sm" onclick="backToMenu()">Back to Menu</button>' +
+        '<div class="fc-progress">Complete!</div>' +
+      '</div>' +
+      '<div class="results-card">' +
+        '<h2>Flashcard Session Complete</h2>' +
+        '<div class="big-score">' + pct + '%</div>' +
+        '<p>You marked <strong>' + this.known + '</strong> of <strong>' + total + '</strong> cards as known.</p>' +
+        '<p><strong>' + this.review + '</strong> cards flagged for review.</p>' +
+        '<div class="fc-results-actions">' +
+          '<button class="btn btn-primary" onclick="FC.start(\'all\')">Shuffle All Again</button>' +
+          '<button class="btn" onclick="backToMenu()">Back to Menu</button>' +
+        '</div>' +
+      '</div>';
+  }
+};
+
+// =======================================
+// QUICK QUIZ MODE
+// =======================================
+var QZ = {
+  questions: [],
+  current: 0,
+  score: 0,
+  answered: 0,
+  timer: null,
+  seconds: 0,
+
+  setup: function() {
+    showMode('quiz');
+    var panel = document.getElementById('quiz-panel');
+    var sectionOpts = '<option value="all">All Sections</option>';
+    for (var k in SECTIONS) {
+      sectionOpts += '<option value="' + k + '">' + SECTIONS[k] + '</option>';
+    }
+    panel.innerHTML =
+      '<div class="quiz-setup">' +
+        '<button class="btn btn-sm" onclick="backToMenu()" style="margin-bottom:1rem">Back to Menu</button>' +
+        '<h2>Quick Quiz Setup</h2>' +
+        '<div class="setup-group">' +
+          '<label>Number of Questions</label>' +
+          '<div class="setup-options">' +
+            '<button class="btn setup-btn active" data-count="10" onclick="QZ.selectCount(this)">10</button>' +
+            '<button class="btn setup-btn" data-count="15" onclick="QZ.selectCount(this)">15</button>' +
+            '<button class="btn setup-btn" data-count="20" onclick="QZ.selectCount(this)">20</button>' +
+            '<button class="btn setup-btn" data-count="30" onclick="QZ.selectCount(this)">30</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="setup-group">' +
+          '<label>Section Filter</label>' +
+          '<select id="qzSection" class="setup-select">' + sectionOpts + '</select>' +
+        '</div>' +
+        '<button class="btn btn-primary btn-lg" onclick="QZ.begin()">Start Quiz</button>' +
+      '</div>';
+  },
+
+  selectCount: function(btn) {
+    btn.parentElement.querySelectorAll('.setup-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+  },
+
+  begin: function() {
+    var countBtn = document.querySelector('.setup-btn.active');
+    var count = countBtn ? parseInt(countBtn.dataset.count) : 10;
+    var section = document.getElementById('qzSection').value;
+    var pool = QUESTIONS.filter(function(q) { return q.type !== 'scenario'; });
+    if (section !== 'all') pool = pool.filter(function(q) { return q.s === parseInt(section); });
+    shuffle(pool);
+    this.questions = pool.slice(0, Math.min(count, pool.length));
+    this.current = 0;
+    this.score = 0;
+    this.answered = 0;
+    this.seconds = 0;
+    this._section = section;
+    this.startTimer();
+    this.renderQuestion();
+  },
+
+  startTimer: function() {
+    var self = this;
+    if (this.timer) clearInterval(this.timer);
+    this.timer = setInterval(function() {
+      self.seconds++;
+      var el = document.getElementById('qzTimer');
+      if (el) {
+        var m = Math.floor(self.seconds / 60);
+        var s = self.seconds % 60;
+        el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+      }
+    }, 1000);
+  },
+
+  renderQuestion: function() {
+    var panel = document.getElementById('quiz-panel');
+    if (this.current >= this.questions.length) {
+      clearInterval(this.timer);
+      Store.recordSession('quiz', this.score, this.questions.length, this._section, this.seconds);
+      panel.innerHTML = this.resultsHTML();
+      return;
+    }
+    var q = this.questions[this.current];
+    var num = this.current + 1;
+    var total = this.questions.length;
+    var sName = SECTIONS[q.s] || '';
+
+    var optionsHTML = '';
+    if (q.type === 'tf') {
+      optionsHTML =
+        '<div class="quiz-options">' +
+          '<button class="quiz-opt" data-val="true" onclick="QZ.answer(this, true)">True</button>' +
+          '<button class="quiz-opt" data-val="false" onclick="QZ.answer(this, false)">False</button>' +
+        '</div>';
+    } else {
+      var letters = ['A','B','C','D'];
+      var indices = q.opts.map(function(o,i) { return i; });
+      shuffle(indices);
+      optionsHTML = '<div class="quiz-options">';
+      indices.forEach(function(origIdx, newIdx) {
+        optionsHTML += '<button class="quiz-opt" data-orig="' + origIdx + '" onclick="QZ.answer(this,' + origIdx + ')">' + letters[newIdx] + ') ' + q.opts[origIdx] + '</button>';
+      });
+      optionsHTML += '</div>';
+    }
+
+    panel.innerHTML =
+      '<div class="quiz-header">' +
+        '<button class="btn btn-sm" onclick="QZ.quit()">Quit</button>' +
+        '<div class="quiz-counter">' + num + ' / ' + total + '</div>' +
+        '<div class="quiz-stats">Score: ' + this.score + '/' + this.answered + ' | <span id="qzTimer">0:00</span></div>' +
+      '</div>' +
+      '<div class="quiz-progress-bar"><div class="quiz-progress-fill" style="width:' + ((num/total)*100) + '%"></div></div>' +
+      '<div class="quiz-card">' +
+        '<div class="quiz-section-tag">' + sName + '</div>' +
+        '<div class="quiz-question">' + q.q + '</div>' +
+        optionsHTML +
+        '<div class="quiz-feedback" id="qzFeedback"></div>' +
+      '</div>';
+  },
+
+  answer: function(btn, val) {
+    if (btn.closest('.quiz-card').classList.contains('answered')) return;
+    btn.closest('.quiz-card').classList.add('answered');
+
+    var q = this.questions[this.current];
+    var correct = (q.type === 'tf') ? (val === q.ans) : (val === q.ans);
+    this.answered++;
+
+    var allBtns = btn.parentElement.querySelectorAll('.quiz-opt');
+    allBtns.forEach(function(b) {
+      b.disabled = true;
+      if (q.type === 'tf') {
+        if (String(b.dataset.val) === String(q.ans)) b.classList.add('opt-correct');
+        else b.classList.add('opt-neutral');
+      } else {
+        if (parseInt(b.dataset.orig) === q.ans) b.classList.add('opt-correct');
+      }
+    });
+
+    if (correct) {
+      this.score++;
+      btn.classList.add('opt-correct');
+      Store.recordCorrect(q.id);
+    } else {
+      btn.classList.add('opt-wrong');
+      Store.recordMiss(q.id);
+    }
+
+    var fb = document.getElementById('qzFeedback');
+    fb.innerHTML = '<div class="fb-' + (correct ? 'correct' : 'wrong') + '">' +
+      (correct ? 'Correct!' : 'Incorrect') + '</div>' +
+      '<div class="fb-explanation">' + q.exp + '</div>' +
+      '<button class="btn btn-primary" onclick="QZ.next()" style="margin-top:1rem">' +
+      (this.current < this.questions.length - 1 ? 'Next Question' : 'See Results') + '</button>';
+    fb.style.display = 'block';
+  },
+
+  next: function() {
+    this.current++;
+    this.renderQuestion();
+  },
+
+  quit: function() {
+    clearInterval(this.timer);
+    backToMenu();
+  },
+
+  resultsHTML: function() {
+    var total = this.questions.length;
+    var pct = total > 0 ? Math.round((this.score / total) * 100) : 0;
+    var m = Math.floor(this.seconds / 60);
+    var s = this.seconds % 60;
+    var timeStr = m + ':' + (s < 10 ? '0' : '') + s;
+    var grade = '';
+    if (pct >= 90) grade = 'Outstanding! Mastery-level knowledge.';
+    else if (pct >= 80) grade = 'Strong performance. Minor gaps to review.';
+    else if (pct >= 70) grade = 'Passing. Some areas need more study.';
+    else grade = 'Below passing. Focused review recommended.';
+
+    return '<div class="results-card">' +
+        '<h2>Quiz Complete</h2>' +
+        '<div class="big-score">' + pct + '%</div>' +
+        '<p>' + this.score + ' of ' + total + ' correct in ' + timeStr + '</p>' +
+        '<p class="grade-text">' + grade + '</p>' +
+        '<div class="fc-results-actions">' +
+          '<button class="btn btn-primary" onclick="QZ.setup()">New Quiz</button>' +
+          '<button class="btn" onclick="backToMenu()">Back to Menu</button>' +
+        '</div>' +
+      '</div>';
+  }
+};
+
+// =======================================
+// FULL TEST MODE (85 questions, graded)
+// =======================================
+var FT = {
+  questions: [],
+
+  start: function() {
+    this.questions = shuffle(QUESTIONS.slice());
+    showMode('test');
+    this.render();
+    window.scrollTo({top: 0});
+  },
+
+  render: function() {
+    var panel = document.getElementById('test-panel');
+    var html =
+      '<div class="test-header">' +
+        '<button class="btn btn-sm" onclick="backToMenu()">Back to Menu</button>' +
+        '<h2>Full Practice Test</h2>' +
+        '<p class="test-subtitle">' + this.questions.length + ' Questions | All Sections | Graded</p>' +
+      '</div>' +
+      '<div class="test-controls">' +
+        '<div class="test-score-bar">' +
+          '<span id="ftScoreDisplay">0 / 0</span>' +
+          '<div class="progress-track"><div class="progress-fill" id="ftProgressFill"></div></div>' +
+        '</div>' +
+        '<div class="test-btn-group">' +
+          '<button class="btn btn-primary" onclick="FT.score()">Score Test</button>' +
+          '<button class="btn" onclick="FT.showAnswers()">Show All Answers</button>' +
+          '<button class="btn" onclick="FT.reset()">Reset</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="ftResultsPanel" class="results-panel" style="display:none"></div>';
+
+    var bySection = {};
+    this.questions.forEach(function(q) {
+      if (!bySection[q.s]) bySection[q.s] = [];
+      bySection[q.s].push(q);
+    });
+
+    var sectionOrder = [1,2,3,4,5,6,7,8];
+    var qNum = 0;
+    var self = this;
+    sectionOrder.forEach(function(s) {
+      if (!bySection[s]) return;
+      html += '<div class="section-divider">' + SECTIONS[s] + '</div>';
+      shuffle(bySection[s]).forEach(function(q) {
+        qNum++;
+        html += self.renderCard(q, qNum);
+      });
+    });
+
+    html +=
+      '<div class="test-controls" style="margin-top:2rem">' +
+        '<div class="test-btn-group">' +
+          '<button class="btn btn-primary btn-lg" onclick="FT.score()">Score Test</button>' +
+          '<button class="btn" onclick="FT.showAnswers()">Show All Answers</button>' +
+          '<button class="btn" onclick="FT.reset()">Reset</button>' +
+        '</div>' +
+      '</div>';
+    panel.innerHTML = html;
+  },
+
+  renderCard: function(q, num) {
+    var sName = SECTIONS[q.s] || '';
+    var optionsHTML = '';
+
+    if (q.type === 'scenario') {
+      optionsHTML = '<textarea class="scenario-textarea" rows="5" placeholder="Write your answer here..."></textarea>';
+    } else if (q.type === 'tf') {
+      optionsHTML = '<div class="tf-options">' +
+        '<label><input type="radio" name="ft_q' + num + '" value="true"> True</label>' +
+        '<label><input type="radio" name="ft_q' + num + '" value="false"> False</label>' +
+      '</div>';
+    } else {
+      var letters = ['a','b','c','d'];
+      var indices = q.opts.map(function(o,i) { return i; });
+      shuffle(indices);
+      optionsHTML = '<div class="options">';
+      indices.forEach(function(origIdx, newIdx) {
+        optionsHTML += '<label><input type="radio" name="ft_q' + num + '" value="' + origIdx + '"> ' + letters[newIdx] + ') ' + q.opts[origIdx] + '</label>';
+      });
+      optionsHTML += '</div>';
+    }
+
+    var answerVal = q.type === 'tf' ? String(q.ans) : (q.type === 'scenario' ? 'sa' : String(q.ans));
+
+    return '<div class="question-card" data-qid="' + q.id + '" data-type="' + q.type + '" data-answer="' + answerVal + '" data-section="' + q.s + '" data-qnum="' + num + '">' +
+        '<div class="q-header">' +
+          '<span class="q-number">Q' + num + '</span>' +
+          '<span class="result-badge"></span>' +
+          '<span class="q-section-tag">' + sName + '</span>' +
+        '</div>' +
+        '<div class="q-text">' + q.q + '</div>' +
+        optionsHTML +
+        '<div class="answer-reveal" style="display:none">' +
+          '<div class="answer-label"></div>' +
+          '<div class="answer-explanation">' + q.exp + '</div>' +
+        '</div>' +
+      '</div>';
+  },
+
+  clearGrading: function() {
+    document.querySelectorAll('#test-panel .question-card').forEach(function(card) {
+      card.classList.remove('graded-correct', 'graded-incorrect');
+      var badge = card.querySelector('.result-badge');
+      if (badge) badge.textContent = '';
+    });
+    document.querySelectorAll('#test-panel .options label, #test-panel .tf-options label').forEach(function(l) {
+      l.classList.remove('option-correct', 'option-wrong-selected');
+    });
+    document.querySelectorAll('#test-panel .answer-reveal').forEach(function(r) {
+      r.style.display = 'none';
+      r.className = 'answer-reveal';
+    });
+  },
+
+  highlightOption: function(card, value, className) {
+    card.querySelectorAll('input[type="radio"]').forEach(function(r) {
+      if (r.value === value) r.closest('label').classList.add(className);
+    });
+  },
+
+  gradeCard: function(card) {
+    var type = card.dataset.type;
+    var answer = card.dataset.answer;
+    var qnum = card.dataset.qnum;
+    var badge = card.querySelector('.result-badge');
+    var reveal = card.querySelector('.answer-reveal');
+    var ansLabel = reveal.querySelector('.answer-label');
+
+    if (type === 'scenario') {
+      reveal.className = 'answer-reveal neutral';
+      reveal.style.display = 'block';
+      ansLabel.textContent = 'Sample Answer:';
+      return { scored: false };
+    }
+
+    var selected = card.querySelector('input[name="ft_q' + qnum + '"]:checked');
+    var selectedVal = selected ? selected.value : null;
+    var isCorrect = selectedVal === answer;
+    var qid = parseInt(card.dataset.qid);
+
+    if (isCorrect) {
+      card.classList.add('graded-correct');
+      if (badge) badge.textContent = 'Correct';
+      this.highlightOption(card, answer, 'option-correct');
+      reveal.style.display = 'none';
+      Store.recordCorrect(qid);
+      return { scored: true, correct: true };
+    } else {
+      card.classList.add('graded-incorrect');
+      if (badge) badge.textContent = selected ? 'Incorrect' : 'No Answer';
+      this.highlightOption(card, answer, 'option-correct');
+      if (selected) this.highlightOption(card, selectedVal, 'option-wrong-selected');
+      reveal.className = 'answer-reveal incorrect';
+      reveal.style.display = 'block';
+      if (type === 'tf') {
+        ansLabel.textContent = 'Correct Answer: ' + (answer === 'true' ? 'TRUE' : 'FALSE');
+      } else {
+        var q = QUESTIONS.find(function(qq) { return qq.id === qid; });
+        if (q) ansLabel.textContent = 'Correct Answer: ' + q.opts[parseInt(answer)];
+      }
+      Store.recordMiss(qid);
+      return { scored: true, correct: false };
+    }
+  },
+
+  score: function() {
+    this.clearGrading();
+    var total = 0, correct = 0;
+    var sectionScores = {};
+    var self = this;
+
+    document.querySelectorAll('#test-panel .question-card').forEach(function(card) {
+      var result = self.gradeCard(card);
+      if (result.scored) {
+        total++;
+        var s = card.dataset.section;
+        if (!sectionScores[s]) sectionScores[s] = {correct:0, total:0};
+        sectionScores[s].total++;
+        if (result.correct) {
+          correct++;
+          sectionScores[s].correct++;
+        }
+      }
+    });
+
+    var pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+    document.getElementById('ftScoreDisplay').textContent = correct + ' / ' + total;
+    document.getElementById('ftProgressFill').style.width = pct + '%';
+
+    var grade = '';
+    if (pct >= 90) grade = 'Outstanding. Mastery-level knowledge of the Conjugate Method.';
+    else if (pct >= 80) grade = 'Strong Pass. Solid understanding with minor gaps.';
+    else if (pct >= 70) grade = 'Pass. Meets minimum standard. Review missed areas.';
+    else grade = 'Below Passing. Significant review needed.';
+
+    var breakdownHTML = '';
+    for (var s in sectionScores) {
+      var sc = sectionScores[s];
+      var spct = Math.round((sc.correct / sc.total) * 100);
+      breakdownHTML += '<div class="sb-item"><div class="sb-label">' + SECTIONS[s] +
+        '</div><div class="sb-score">' + sc.correct + '/' + sc.total + ' (' + spct + '%)</div></div>';
+    }
+
+    Store.recordSession('test', correct, total);
+
+    var rp = document.getElementById('ftResultsPanel');
+    rp.innerHTML =
+      '<div class="big-score">' + pct + '%</div>' +
+      '<p class="grade-text">' + grade + '</p>' +
+      '<p>' + correct + ' of ' + total + ' scored questions correct. Scenario questions shown for self-assessment.</p>' +
+      '<div class="section-breakdown">' + breakdownHTML + '</div>';
+    rp.style.display = 'block';
+    rp.scrollIntoView({behavior:'smooth'});
+  },
+
+  showAnswers: function() {
+    this.clearGrading();
+    var self = this;
+    document.querySelectorAll('#test-panel .question-card').forEach(function(card) {
+      self.gradeCard(card);
+    });
+  },
+
+  reset: function() {
+    this.clearGrading();
+    document.querySelectorAll('#test-panel input[type="radio"]').forEach(function(r) { r.checked = false; });
+    document.querySelectorAll('#test-panel textarea').forEach(function(t) { t.value = ''; });
+    document.getElementById('ftResultsPanel').style.display = 'none';
+    document.getElementById('ftScoreDisplay').textContent = '0 / 0';
+    document.getElementById('ftProgressFill').style.width = '0%';
+    this.questions = shuffle(QUESTIONS.slice());
+    this.render();
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  }
+};
+
+// =======================================
+// REVIEW MISSED MODE
+// =======================================
+var RV = {
+  questions: [],
+  current: 0,
+  score: 0,
+  answered: 0,
+
+  start: function() {
+    var missedIds = Store.getMissedIds();
+    if (missedIds.length === 0) {
+      alert('No missed questions to review! Keep studying.');
+      return;
+    }
+    var pool = QUESTIONS.filter(function(q) {
+      return missedIds.indexOf(q.id) !== -1 && q.type !== 'scenario';
+    });
+    this.questions = shuffle(pool);
+    this.current = 0;
+    this.score = 0;
+    this.answered = 0;
+    showMode('review');
+    this.renderQuestion();
+  },
+
+  renderQuestion: function() {
+    var panel = document.getElementById('review-panel');
+    if (this.current >= this.questions.length) {
+      Store.recordSession('review', this.score, this.questions.length);
+      panel.innerHTML = this.resultsHTML();
+      return;
+    }
+    var q = this.questions[this.current];
+    var num = this.current + 1;
+    var total = this.questions.length;
+    var sName = SECTIONS[q.s] || '';
+
+    var optionsHTML = '';
+    if (q.type === 'tf') {
+      optionsHTML =
+        '<div class="quiz-options">' +
+          '<button class="quiz-opt" data-val="true" onclick="RV.answer(this, true)">True</button>' +
+          '<button class="quiz-opt" data-val="false" onclick="RV.answer(this, false)">False</button>' +
+        '</div>';
+    } else {
+      var letters = ['A','B','C','D'];
+      var indices = q.opts.map(function(o,i) { return i; });
+      shuffle(indices);
+      optionsHTML = '<div class="quiz-options">';
+      indices.forEach(function(origIdx, newIdx) {
+        optionsHTML += '<button class="quiz-opt" data-orig="' + origIdx + '" onclick="RV.answer(this,' + origIdx + ')">' + letters[newIdx] + ') ' + q.opts[origIdx] + '</button>';
+      });
+      optionsHTML += '</div>';
+    }
+
+    panel.innerHTML =
+      '<div class="quiz-header">' +
+        '<button class="btn btn-sm" onclick="backToMenu()">Back to Menu</button>' +
+        '<div class="quiz-counter">' + num + ' / ' + total + '</div>' +
+        '<div class="quiz-stats">Score: ' + this.score + '/' + this.answered + ' | Review Mode</div>' +
+      '</div>' +
+      '<div class="quiz-progress-bar"><div class="quiz-progress-fill" style="width:' + ((num/total)*100) + '%"></div></div>' +
+      '<div class="quiz-card">' +
+        '<div class="quiz-section-tag">' + sName + '</div>' +
+        '<div class="quiz-question">' + q.q + '</div>' +
+        optionsHTML +
+        '<div class="quiz-feedback" id="rvFeedback"></div>' +
+      '</div>';
+  },
+
+  answer: function(btn, val) {
+    if (btn.closest('.quiz-card').classList.contains('answered')) return;
+    btn.closest('.quiz-card').classList.add('answered');
+
+    var q = this.questions[this.current];
+    var correct = (q.type === 'tf') ? (val === q.ans) : (val === q.ans);
+    this.answered++;
+
+    var allBtns = btn.parentElement.querySelectorAll('.quiz-opt');
+    allBtns.forEach(function(b) {
+      b.disabled = true;
+      if (q.type === 'tf') {
+        if (String(b.dataset.val) === String(q.ans)) b.classList.add('opt-correct');
+        else b.classList.add('opt-neutral');
+      } else {
+        if (parseInt(b.dataset.orig) === q.ans) b.classList.add('opt-correct');
+      }
+    });
+
+    if (correct) {
+      this.score++;
+      btn.classList.add('opt-correct');
+      Store.recordCorrect(q.id);
+    } else {
+      btn.classList.add('opt-wrong');
+      Store.recordMiss(q.id);
+    }
+
+    var fb = document.getElementById('rvFeedback');
+    fb.innerHTML = '<div class="fb-' + (correct ? 'correct' : 'wrong') + '">' +
+      (correct ? 'Correct! This question has been removed from your review list.' : 'Incorrect. This will stay in your review list.') + '</div>' +
+      '<div class="fb-explanation">' + q.exp + '</div>' +
+      '<button class="btn btn-primary" onclick="RV.next()" style="margin-top:1rem">' +
+      (this.current < this.questions.length - 1 ? 'Next Question' : 'See Results') + '</button>';
+    fb.style.display = 'block';
+  },
+
+  next: function() {
+    this.current++;
+    this.renderQuestion();
+  },
+
+  resultsHTML: function() {
+    var total = this.questions.length;
+    var pct = total > 0 ? Math.round((this.score / total) * 100) : 0;
+    var remaining = Store.getMissedIds().length;
+    return '<div class="results-card">' +
+        '<h2>Review Session Complete</h2>' +
+        '<div class="big-score">' + pct + '%</div>' +
+        '<p>' + this.score + ' of ' + total + ' correct</p>' +
+        '<p class="grade-text">' + (remaining > 0 ? remaining + ' questions still in your review list.' : 'Review list cleared! Great work.') + '</p>' +
+        '<div class="fc-results-actions">' +
+          (remaining > 0 ? '<button class="btn btn-primary" onclick="RV.start()">Review Again</button>' : '') +
+          '<button class="btn" onclick="backToMenu()">Back to Menu</button>' +
+        '</div>' +
+      '</div>';
+  }
+};
+
+// =======================================
+// INIT
+// =======================================
+function initApp() {
+  // Dark mode
+  var data = Store.get();
+  applyDarkMode(data.darkMode);
+  document.getElementById('darkModeBtn').addEventListener('click', function() {
+    var d = Store.get();
+    d.darkMode = !d.darkMode;
+    Store.save(d);
+    applyDarkMode(d.darkMode);
+  });
+
+  // Mode card listeners
+  document.getElementById('fc-mode-btn').addEventListener('click', function(e) {
+    var setup = document.getElementById('fc-setup');
+    if (setup) setup.style.display = 'block';
+  });
+  document.getElementById('fc-start-btn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    FC.start(document.getElementById('fcSectionFilter').value);
+  });
+  document.getElementById('fcSectionFilter').addEventListener('click', function(e) {
+    e.stopPropagation();
+  });
+  document.getElementById('qz-mode-btn').addEventListener('click', function() { QZ.setup(); });
+  document.getElementById('ft-mode-btn').addEventListener('click', function() { FT.start(); });
+  document.getElementById('review-mode-btn').addEventListener('click', function() { RV.start(); });
+
+  // Update stats
+  updateStatsBar();
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(function() {});
+  }
+}
+
+document.addEventListener('DOMContentLoaded', initApp);
+</script>
+</body>
+</html>

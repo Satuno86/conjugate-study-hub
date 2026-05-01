@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1a1a2e"/>
+  <g transform="translate(256,240)">
+    <!-- Barbell bar -->
+    <rect x="-180" y="-8" width="360" height="16" rx="8" fill="#e0e0e0"/>
+    <!-- Left plates -->
+    <rect x="-180" y="-60" width="30" height="120" rx="6" fill="#c4322e"/>
+    <rect x="-155" y="-45" width="20" height="90" rx="4" fill="#e8524e"/>
+    <!-- Right plates -->
+    <rect x="150" y="-60" width="30" height="120" rx="6" fill="#c4322e"/>
+    <rect x="135" y="-45" width="20" height="90" rx="4" fill="#e8524e"/>
+    <!-- Collars -->
+    <rect x="-130" y="-14" width="12" height="28" rx="3" fill="#aaa"/>
+    <rect x="118" y="-14" width="12" height="28" rx="3" fill="#aaa"/>
+  </g>
+  <!-- Text -->
+  <text x="256" y="380" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="700" font-size="56" fill="white">CONJUGATE</text>
+  <text x="256" y="420" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="400" font-size="28" fill="#e8524e">STUDY HUB</text>
+</svg>
