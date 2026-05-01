@@ -424,6 +424,57 @@ header p { font-size:0.9rem; opacity:0.85; }
 .progress-ring { display:inline-block; }
 .progress-ring circle { transition: stroke-dashoffset 0.5s ease; }
 
+/* =================== CUSTOM QUIZ BUILDER =================== */
+.section-chip-grid {
+  display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.35rem;
+}
+.section-chip {
+  padding:0.35rem 0.7rem; border:2px solid var(--border); border-radius:20px;
+  font-size:0.78rem; font-weight:600; cursor:pointer; transition:all 0.2s;
+  background:var(--input-bg); color:var(--text); user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.section-chip.active { color:white; border-color:transparent; }
+.section-chip:hover { opacity:0.85; }
+.time-estimate {
+  display:flex; align-items:center; gap:0.5rem; margin-top:1rem;
+  padding:0.75rem 1rem; border-radius:var(--radius);
+  background:var(--neutral-bg); border:1px solid var(--border);
+  font-size:0.9rem;
+}
+.time-estimate .time-icon { font-size:1.3rem; }
+.time-estimate .time-text { flex:1; }
+.time-estimate .time-value { font-weight:700; color:var(--accent); font-size:1.1rem; }
+.count-slider-row {
+  display:flex; align-items:center; gap:1rem; margin-top:0.35rem;
+}
+.count-slider {
+  flex:1; -webkit-appearance:none; appearance:none; height:6px;
+  background:var(--border); border-radius:3px; outline:none;
+}
+.count-slider::-webkit-slider-thumb {
+  -webkit-appearance:none; appearance:none; width:22px; height:22px;
+  border-radius:50%; background:var(--accent); cursor:pointer; border:2px solid white;
+  box-shadow:0 2px 6px rgba(0,0,0,0.2);
+}
+.count-slider::-moz-range-thumb {
+  width:22px; height:22px; border-radius:50%; background:var(--accent);
+  cursor:pointer; border:2px solid white;
+}
+.count-display {
+  font-size:1.5rem; font-weight:700; color:var(--accent);
+  min-width:45px; text-align:center;
+}
+.focus-option {
+  display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0.75rem;
+  border:2px solid var(--border); border-radius:8px; cursor:pointer;
+  transition:all 0.2s; background:var(--input-bg); font-size:0.85rem;
+  -webkit-tap-highlight-color:transparent;
+}
+.focus-option.active { border-color:var(--accent); background:var(--accent); color:white; }
+.focus-option:hover { border-color:var(--accent); }
+.focus-options { display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.35rem; }
+
 /* =================== ANIMATIONS =================== */
 @keyframes fadeUp {
   from { opacity:0; transform:translateY(20px); }
@@ -558,8 +609,8 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
   </div>
   <div class="mode-card" role="button" tabindex="0" id="qz-mode-btn">
     <span class="mode-icon">&#x23F1;</span>
-    <h3>Quick Quiz</h3>
-    <p>10-30 questions with instant feedback. Choose your count and section. Timed.</p>
+    <h3>Custom Quiz</h3>
+    <p>Build your own quiz. Pick sections, question count, focus on missed or flagged. Time estimate included.</p>
   </div>
   <div class="mode-card" role="button" tabindex="0" id="ft-mode-btn">
     <span class="mode-icon">&#x1F4DD;</span>
@@ -1249,29 +1300,183 @@ var QZ = {
   setup: function() {
     showMode('quiz');
     var panel = document.getElementById('quiz-panel');
-    var sectionOpts = '<option value="all">All Sections</option>';
+
+    // Build section chips with colors
+    var sectionChips = '<button class="section-chip active" data-sec="all" style="background:var(--accent);color:white;border-color:var(--accent)" onclick="QZ.toggleSection(this)">All Sections</button>';
     for (var k in SECTIONS) {
-      sectionOpts += '<option value="' + k + '">' + SECTIONS[k] + '</option>';
+      var c = SECTION_COLORS[k] || 'var(--accent)';
+      sectionChips += '<button class="section-chip" data-sec="' + k + '" data-color="' + c + '" onclick="QZ.toggleSection(this)">' + SECTIONS[k] + '</button>';
     }
+
+    // Count available questions for missed-only
+    var missedIds = Store.getMissedIds();
+    var missedAvail = missedIds.length;
+
     panel.innerHTML =
-      '<div class="quiz-setup">' +
+      '<div class="quiz-setup" style="max-width:560px">' +
         '<button class="btn btn-sm" onclick="backToMenu()" style="margin-bottom:1rem">Back to Menu</button>' +
-        '<h2>Quick Quiz Setup</h2>' +
+        '<h2>&#x1F3AF; Build Your Quiz</h2>' +
         '<div class="setup-group">' +
-          '<label>Number of Questions</label>' +
-          '<div class="setup-options">' +
-            '<button class="btn setup-btn active" data-count="10" onclick="QZ.selectCount(this)">10</button>' +
-            '<button class="btn setup-btn" data-count="15" onclick="QZ.selectCount(this)">15</button>' +
-            '<button class="btn setup-btn" data-count="20" onclick="QZ.selectCount(this)">20</button>' +
-            '<button class="btn setup-btn" data-count="30" onclick="QZ.selectCount(this)">30</button>' +
+          '<label>Sections <span style="font-weight:400;color:var(--text-muted)">(tap to select multiple)</span></label>' +
+          '<div class="section-chip-grid">' + sectionChips + '</div>' +
+        '</div>' +
+        '<div class="setup-group">' +
+          '<label>Questions: <span id="countDisplay" class="count-display" style="display:inline">10</span></label>' +
+          '<div class="count-slider-row">' +
+            '<span style="font-size:0.8rem;color:var(--text-muted)">5</span>' +
+            '<input type="range" class="count-slider" id="qzCountSlider" min="5" max="50" value="10" step="5" oninput="QZ.updateCount(this.value)">' +
+            '<span style="font-size:0.8rem;color:var(--text-muted)">50</span>' +
           '</div>' +
         '</div>' +
         '<div class="setup-group">' +
-          '<label>Section Filter</label>' +
-          '<select id="qzSection" class="setup-select">' + sectionOpts + '</select>' +
+          '<label>Focus</label>' +
+          '<div class="focus-options">' +
+            '<button class="focus-option active" data-focus="all" onclick="QZ.selectFocus(this)">&#x1F4DA; All Questions</button>' +
+            '<button class="focus-option" data-focus="missed" onclick="QZ.selectFocus(this)">&#x1F504; Missed Only' + (missedAvail > 0 ? ' (' + missedAvail + ')' : '') + '</button>' +
+            '<button class="focus-option" data-focus="flagged" onclick="QZ.selectFocus(this)">&#x1F6A9; Flagged</button>' +
+            '<button class="focus-option" data-focus="mc" onclick="QZ.selectFocus(this)">&#x1F524; Multiple Choice</button>' +
+            '<button class="focus-option" data-focus="tf" onclick="QZ.selectFocus(this)">&#x2705; True/False</button>' +
+          '</div>' +
         '</div>' +
-        '<button class="btn btn-primary btn-lg" onclick="QZ.begin()">Start Quiz</button>' +
+        '<div class="time-estimate" id="timeEstimate">' +
+          '<span class="time-icon">&#x23F1;</span>' +
+          '<span class="time-text">Estimated time</span>' +
+          '<span class="time-value" id="timeValue">~2 min</span>' +
+        '</div>' +
+        '<div style="display:flex;gap:0.75rem;margin-top:1.25rem">' +
+          '<button class="btn btn-primary btn-lg" style="flex:1" onclick="QZ.begin()">Start Quiz</button>' +
+        '</div>' +
+        '<div id="qzPoolInfo" style="text-align:center;margin-top:0.75rem;font-size:0.8rem;color:var(--text-muted)"></div>' +
       '</div>';
+
+    this.updateCount(10);
+    this.updatePoolInfo();
+  },
+
+  toggleSection: function(chip) {
+    var sec = chip.dataset.sec;
+    if (sec === 'all') {
+      // Toggle all off/on
+      var chips = document.querySelectorAll('.section-chip');
+      var allActive = chip.classList.contains('active');
+      chips.forEach(function(c) {
+        c.classList.remove('active');
+        c.style.background = '';
+        c.style.color = '';
+        c.style.borderColor = '';
+      });
+      if (!allActive) {
+        chip.classList.add('active');
+        chip.style.background = 'var(--accent)';
+        chip.style.color = 'white';
+        chip.style.borderColor = 'var(--accent)';
+      }
+    } else {
+      // Deactivate "All" chip
+      var allChip = document.querySelector('.section-chip[data-sec="all"]');
+      if (allChip) {
+        allChip.classList.remove('active');
+        allChip.style.background = '';
+        allChip.style.color = '';
+        allChip.style.borderColor = '';
+      }
+      // Toggle this section
+      var color = chip.dataset.color;
+      if (chip.classList.contains('active')) {
+        chip.classList.remove('active');
+        chip.style.background = '';
+        chip.style.color = '';
+        chip.style.borderColor = '';
+      } else {
+        chip.classList.add('active');
+        chip.style.background = color;
+        chip.style.color = 'white';
+        chip.style.borderColor = color;
+      }
+      // If none selected, reactivate "All"
+      var anyActive = document.querySelectorAll('.section-chip.active');
+      if (anyActive.length === 0 && allChip) {
+        allChip.classList.add('active');
+        allChip.style.background = 'var(--accent)';
+        allChip.style.color = 'white';
+        allChip.style.borderColor = 'var(--accent)';
+      }
+    }
+    this.updatePoolInfo();
+  },
+
+  selectFocus: function(btn) {
+    document.querySelectorAll('.focus-option').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    this.updatePoolInfo();
+  },
+
+  updateCount: function(val) {
+    var display = document.getElementById('countDisplay');
+    if (display) display.textContent = val;
+    // Update time estimate (~12 seconds per question)
+    var secs = val * 12;
+    var timeEl = document.getElementById('timeValue');
+    if (timeEl) {
+      if (secs < 60) timeEl.textContent = '~' + secs + ' sec';
+      else if (secs < 3600) timeEl.textContent = '~' + Math.round(secs / 60) + ' min';
+      else timeEl.textContent = '~' + Math.round(secs / 60) + ' min';
+    }
+    this.updatePoolInfo();
+  },
+
+  getSelectedSections: function() {
+    var allChip = document.querySelector('.section-chip[data-sec="all"]');
+    if (allChip && allChip.classList.contains('active')) return 'all';
+    var selected = [];
+    document.querySelectorAll('.section-chip.active').forEach(function(c) {
+      if (c.dataset.sec !== 'all') selected.push(parseInt(c.dataset.sec));
+    });
+    return selected.length > 0 ? selected : 'all';
+  },
+
+  getSelectedFocus: function() {
+    var active = document.querySelector('.focus-option.active');
+    return active ? active.dataset.focus : 'all';
+  },
+
+  getFilteredPool: function() {
+    var sections = this.getSelectedSections();
+    var focus = this.getSelectedFocus();
+    var pool = QUESTIONS.filter(function(q) { return q.type !== 'scenario'; });
+
+    // Section filter
+    if (sections !== 'all') {
+      pool = pool.filter(function(q) { return sections.indexOf(q.s) !== -1; });
+    }
+
+    // Focus filter
+    if (focus === 'missed') {
+      var missedIds = Store.getMissedIds();
+      pool = pool.filter(function(q) { return missedIds.indexOf(q.id) !== -1; });
+    } else if (focus === 'flagged') {
+      pool = pool.filter(function(q) { return Store.isFlagged(q.id); });
+    } else if (focus === 'mc') {
+      pool = pool.filter(function(q) { return q.type === 'mc'; });
+    } else if (focus === 'tf') {
+      pool = pool.filter(function(q) { return q.type === 'tf'; });
+    }
+
+    return pool;
+  },
+
+  updatePoolInfo: function() {
+    var el = document.getElementById('qzPoolInfo');
+    if (!el) return;
+    var pool = this.getFilteredPool();
+    var slider = document.getElementById('qzCountSlider');
+    var count = slider ? parseInt(slider.value) : 10;
+    var actual = Math.min(count, pool.length);
+    if (pool.length === 0) {
+      el.innerHTML = '<span style="color:var(--incorrect)">No questions match your filters</span>';
+    } else {
+      el.textContent = pool.length + ' questions available • quiz will use ' + actual;
+    }
   },
 
   selectCount: function(btn) {
@@ -1280,18 +1485,23 @@ var QZ = {
   },
 
   begin: function() {
-    var countBtn = document.querySelector('.setup-btn.active');
-    var count = countBtn ? parseInt(countBtn.dataset.count) : 10;
-    var section = document.getElementById('qzSection').value;
-    var pool = QUESTIONS.filter(function(q) { return q.type !== 'scenario'; });
-    if (section !== 'all') pool = pool.filter(function(q) { return q.s === parseInt(section); });
+    var slider = document.getElementById('qzCountSlider');
+    var count = slider ? parseInt(slider.value) : 10;
+    var pool = this.getFilteredPool();
+
+    if (pool.length === 0) {
+      showToast('&#x26A0;&#xFE0F; No questions match your filters!');
+      return;
+    }
+
     shuffle(pool);
     this.questions = pool.slice(0, Math.min(count, pool.length));
     this.current = 0;
     this.score = 0;
     this.answered = 0;
     this.seconds = 0;
-    this._section = section;
+    var sections = this.getSelectedSections();
+    this._section = sections === 'all' ? 'all' : sections.join(',');
     this.startTimer();
     this.renderQuestion();
   },
