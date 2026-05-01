@@ -363,6 +363,67 @@ header p { font-size:0.9rem; opacity:0.85; }
   .stats-bar { gap: 1rem; font-size: 0.75rem; }
 }
 
+/* =================== FLAG BUTTON =================== */
+.flag-btn {
+  display:inline-flex; align-items:center; gap:0.3rem;
+  padding:0.35rem 0.7rem; border:1.5px solid #ff9800; border-radius:6px;
+  background:transparent; color:#ff9800; font-size:0.75rem; font-weight:600;
+  cursor:pointer; transition:all 0.2s; font-family:inherit;
+  -webkit-tap-highlight-color:transparent; margin-top:0.75rem;
+}
+.flag-btn:hover { background:#fff3e0; }
+.flag-btn.flagged { background:#ff9800; color:white; }
+[data-theme="dark"] .flag-btn:hover { background:#3a2a10; }
+[data-theme="dark"] .flag-btn.flagged { background:#ff9800; color:#1a1a2e; }
+
+/* =================== DASHBOARD =================== */
+.dash-grid {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+  gap:1.25rem; margin-bottom:1.5rem;
+}
+.dash-card {
+  background:var(--card); border-radius:var(--radius); padding:1.5rem;
+  border:2px solid var(--border); box-shadow:var(--shadow);
+}
+.dash-card h3 { font-size:1rem; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; }
+.dash-stat-row {
+  display:flex; justify-content:space-around; text-align:center; gap:0.5rem; flex-wrap:wrap;
+}
+.dash-stat { flex:1; min-width:70px; }
+.dash-stat .value { font-size:1.8rem; font-weight:700; color:var(--accent); line-height:1.2; }
+.dash-stat .label { font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem; }
+.dash-chart-container { position:relative; width:100%; overflow:hidden; }
+.dash-chart-container svg { width:100%; height:auto; display:block; }
+.dash-section-bar { margin-bottom:0.6rem; }
+.dash-section-label {
+  display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:0.25rem;
+}
+.dash-section-track {
+  height:8px; background:var(--border); border-radius:4px; overflow:hidden;
+}
+.dash-section-fill {
+  height:100%; border-radius:4px; transition:width 0.5s;
+}
+.dash-empty {
+  text-align:center; padding:2rem 1rem; color:var(--text-muted); font-size:0.9rem;
+}
+
+/* =================== DIAGRAMS =================== */
+.diagram-card {
+  background:var(--card); border-radius:var(--radius); padding:1.5rem;
+  border:2px solid var(--border); box-shadow:var(--shadow); margin-bottom:1.25rem;
+}
+.diagram-card h3 { font-size:1rem; margin-bottom:0.75rem; display:flex; align-items:center; gap:0.5rem; }
+.diagram-card svg { width:100%; height:auto; display:block; }
+.diagram-card .diagram-caption {
+  font-size:0.8rem; color:var(--text-muted); text-align:center;
+  margin-top:0.75rem; line-height:1.4;
+}
+
+/* Progress ring */
+.progress-ring { display:inline-block; }
+.progress-ring circle { transition: stroke-dashoffset 0.5s ease; }
+
 /* =================== PRINT =================== */
 @media print {
   header { background:white !important; color:black; border-bottom:2px solid black; }
@@ -435,6 +496,11 @@ header p { font-size:0.9rem; opacity:0.85; }
     <p>Drill the questions you've gotten wrong. Targeted practice.</p>
     <span class="mode-badge" id="missedCount">0 to review</span>
   </div>
+  <div class="mode-card" role="button" tabindex="0" id="dash-mode-btn">
+    <span class="mode-icon">&#x1F4C8;</span>
+    <h3>My Progress</h3>
+    <p>Score trends, section strengths, study streaks, and visual breakdowns of your performance.</p>
+  </div>
   <div class="mode-card" role="button" tabindex="0" id="survey-mode-btn">
     <span class="mode-icon">&#x1F4AC;</span>
     <h3>Feedback</h3>
@@ -445,6 +511,7 @@ header p { font-size:0.9rem; opacity:0.85; }
 <div id="quiz-panel" class="mode-panel"></div>
 <div id="test-panel" class="mode-panel"></div>
 <div id="review-panel" class="mode-panel"></div>
+<div id="dash-panel" class="mode-panel"></div>
 <div id="survey-panel" class="mode-panel"></div>
 
 <script>
@@ -592,6 +659,7 @@ var Store = {
     return {
       darkMode: false,
       missedQuestions: {},  // {questionId: missCount}
+      flaggedQuestions: {}, // {questionId: "reason"}
       quizHistory: [],     // [{date, score, total, mode, section, timeSeconds}]
       studyStreak: { lastDate: null, current: 0, longest: 0 },
       totalSessions: 0
@@ -678,6 +746,27 @@ var Store = {
     var data = this.load();
     data.darkMode = on;
     this.save(data);
+  },
+
+  toggleFlag: function(questionId) {
+    var data = this.load();
+    if (data.flaggedQuestions[questionId]) {
+      delete data.flaggedQuestions[questionId];
+    } else {
+      data.flaggedQuestions[questionId] = new Date().toISOString();
+    }
+    this.save(data);
+    return !!data.flaggedQuestions[questionId];
+  },
+
+  isFlagged: function(questionId) {
+    var data = this.load();
+    return !!data.flaggedQuestions[questionId];
+  },
+
+  getFlaggedCount: function() {
+    var data = this.load();
+    return Object.keys(data.flaggedQuestions).length;
   }
 };
 
@@ -753,6 +842,18 @@ function showMode(mode) {
 
 function backToMenu() {
   showMode(null);
+}
+
+function flagQuestion(btn, qid) {
+  var isFlagged = Store.toggleFlag(qid);
+  btn.classList.toggle('flagged', isFlagged);
+  btn.innerHTML = isFlagged ? '&#x1F6A9; Flagged' : '&#x26A0;&#xFE0F; Not sure this is right';
+}
+
+function flagBtnHTML(qid) {
+  var flagged = Store.isFlagged(qid);
+  return '<button class="flag-btn' + (flagged ? ' flagged' : '') + '" onclick="event.stopPropagation();flagQuestion(this,' + qid + ')">' +
+    (flagged ? '&#x1F6A9; Flagged' : '&#x26A0;&#xFE0F; Not sure this is right') + '</button>';
 }
 
 // =======================================
@@ -992,6 +1093,7 @@ var QZ = {
         '<div class="quiz-question">' + q.q + '</div>' +
         optionsHTML +
         '<div class="quiz-feedback" id="qzFeedback"></div>' +
+        flagBtnHTML(q.id) +
       '</div>';
   },
 
@@ -1068,7 +1170,7 @@ var QZ = {
 };
 
 // =======================================
-// FULL TEST MODE (85 questions, graded)
+// FULL TEST MODE (105 questions, graded)
 // =======================================
 var FT = {
   questions: [],
@@ -1107,7 +1209,7 @@ var FT = {
       bySection[q.s].push(q);
     });
 
-    var sectionOrder = [1,2,3,4,5,6,7,8];
+    var sectionOrder = [1,2,3,4,5,6,7,8,9,10];
     var qNum = 0;
     var self = this;
     sectionOrder.forEach(function(s) {
@@ -1166,6 +1268,7 @@ var FT = {
           '<div class="answer-label"></div>' +
           '<div class="answer-explanation">' + q.exp + '</div>' +
         '</div>' +
+        flagBtnHTML(q.id) +
       '</div>';
   },
 
@@ -1374,6 +1477,7 @@ var RV = {
         '<div class="quiz-question">' + q.q + '</div>' +
         optionsHTML +
         '<div class="quiz-feedback" id="rvFeedback"></div>' +
+        flagBtnHTML(q.id) +
       '</div>';
   },
 
@@ -1437,13 +1541,489 @@ var RV = {
 };
 
 // =======================================
+// PERFORMANCE DASHBOARD
+// =======================================
+var DASH = {
+  start: function() {
+    showMode('dash');
+    var panel = document.getElementById('dash-panel');
+    var data = Store.get();
+    var history = data.quizHistory || [];
+
+    var html = '<div style="margin-bottom:1.5rem">' +
+      '<button class="btn btn-sm" onclick="backToMenu()" style="margin-bottom:1rem">Back to Menu</button>' +
+      '<h2 style="margin-bottom:0.25rem">&#x1F4CA; Performance Dashboard</h2>' +
+      '<p style="color:var(--text-muted);font-size:0.9rem">Track your progress and identify areas to focus on.</p>' +
+    '</div>';
+
+    if (history.length === 0) {
+      html += '<div class="dash-card"><div class="dash-empty">' +
+        '<span style="font-size:2.5rem;display:block;margin-bottom:0.75rem">&#x1F3CB;&#xFE0F;</span>' +
+        'No sessions yet! Take a quiz or practice test to start tracking your progress.' +
+      '</div></div>';
+      html += this.diagramsHTML();
+      panel.innerHTML = html;
+      return;
+    }
+
+    // Summary stats
+    var totalSessions = data.totalSessions || history.length;
+    var streak = data.studyStreak.current || 0;
+    var longest = data.studyStreak.longest || 0;
+    var allScores = history.map(function(h) { return h.total > 0 ? Math.round((h.score / h.total) * 100) : 0; });
+    var avg = Math.round(allScores.reduce(function(a,b){return a+b;},0) / allScores.length);
+    var best = Math.max.apply(null, allScores);
+    var flagged = Store.getFlaggedCount();
+
+    html += '<div class="dash-grid">';
+
+    // Stats overview card with progress ring
+    html += '<div class="dash-card">' +
+      '<h3>&#x1F3AF; Overview</h3>' +
+      '<div style="text-align:center;margin-bottom:1rem">' + this.progressRingSVG(avg, 80) + '</div>' +
+      '<div class="dash-stat-row">' +
+        '<div class="dash-stat"><div class="value">' + totalSessions + '</div><div class="label">Sessions</div></div>' +
+        '<div class="dash-stat"><div class="value">' + streak + '</div><div class="label">Day Streak</div></div>' +
+        '<div class="dash-stat"><div class="value">' + longest + '</div><div class="label">Best Streak</div></div>' +
+        '<div class="dash-stat"><div class="value">' + best + '%</div><div class="label">Best Score</div></div>' +
+      '</div>' +
+      (flagged > 0 ? '<div style="text-align:center;margin-top:0.75rem;font-size:0.85rem;color:#ff9800">&#x1F6A9; ' + flagged + ' question' + (flagged > 1 ? 's' : '') + ' flagged for review</div>' : '') +
+    '</div>';
+
+    // Score trend chart
+    html += '<div class="dash-card">' +
+      '<h3>&#x1F4C8; Score Trend</h3>' +
+      '<div class="dash-chart-container">' + this.trendChartSVG(history) + '</div>' +
+    '</div>';
+
+    html += '</div>'; // close dash-grid
+
+    // Section breakdown
+    html += '<div class="dash-card" style="margin-bottom:1.25rem">' +
+      '<h3>&#x1F4CA; Section Performance</h3>' +
+      this.sectionBreakdownHTML(history) +
+    '</div>';
+
+    // Activity heatmap
+    html += '<div class="dash-card" style="margin-bottom:1.25rem">' +
+      '<h3>&#x1F5D3;&#xFE0F; Study Activity (Last 8 Weeks)</h3>' +
+      '<div class="dash-chart-container">' + this.heatmapSVG(history) + '</div>' +
+    '</div>';
+
+    // Recent sessions
+    html += '<div class="dash-card" style="margin-bottom:1.25rem">' +
+      '<h3>&#x1F4DD; Recent Sessions</h3>' +
+      this.recentSessionsHTML(history) +
+    '</div>';
+
+    // Diagrams section
+    html += this.diagramsHTML();
+
+    panel.innerHTML = html;
+  },
+
+  progressRingSVG: function(pct, size) {
+    var r = (size / 2) - 8;
+    var circ = 2 * Math.PI * r;
+    var offset = circ - (pct / 100) * circ;
+    var color = pct >= 70 ? 'var(--correct)' : pct >= 50 ? '#ff9800' : 'var(--incorrect)';
+    return '<svg width="' + size + '" height="' + size + '" class="progress-ring">' +
+      '<circle cx="' + (size/2) + '" cy="' + (size/2) + '" r="' + r + '" ' +
+        'fill="none" stroke="var(--border)" stroke-width="6"/>' +
+      '<circle cx="' + (size/2) + '" cy="' + (size/2) + '" r="' + r + '" ' +
+        'fill="none" stroke="' + color + '" stroke-width="6" ' +
+        'stroke-dasharray="' + circ + '" stroke-dashoffset="' + offset + '" ' +
+        'stroke-linecap="round" transform="rotate(-90 ' + (size/2) + ' ' + (size/2) + ')"/>' +
+      '<text x="' + (size/2) + '" y="' + (size/2) + '" text-anchor="middle" dy="0.35em" ' +
+        'font-size="1.4rem" font-weight="700" fill="var(--text)">' + pct + '%</text>' +
+      '<text x="' + (size/2) + '" y="' + (size/2 + 14) + '" text-anchor="middle" ' +
+        'font-size="0.6rem" fill="var(--text-muted)">AVG SCORE</text>' +
+    '</svg>';
+  },
+
+  trendChartSVG: function(history) {
+    var recent = history.slice(-20);
+    if (recent.length < 2) return '<div class="dash-empty">Need at least 2 sessions to show trend</div>';
+
+    var w = 500, h = 180, pad = 40, padR = 20, padT = 20;
+    var points = recent.map(function(s) { return s.total > 0 ? Math.round((s.score / s.total) * 100) : 0; });
+    var n = points.length;
+    var xStep = (w - pad - padR) / (n - 1);
+
+    // Y scale: 0-100
+    var coords = points.map(function(p, i) {
+      return { x: pad + i * xStep, y: padT + (1 - p / 100) * (h - padT - pad) };
+    });
+
+    // Build path
+    var pathD = coords.map(function(c, i) { return (i === 0 ? 'M' : 'L') + c.x + ',' + c.y; }).join(' ');
+
+    // Gradient area
+    var areaD = pathD + ' L' + coords[n-1].x + ',' + (h - pad) + ' L' + coords[0].x + ',' + (h - pad) + ' Z';
+
+    var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">';
+    svg += '<defs><linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="var(--accent)" stop-opacity="0.3"/>' +
+      '<stop offset="100%" stop-color="var(--accent)" stop-opacity="0.02"/>' +
+    '</linearGradient></defs>';
+
+    // Grid lines and labels
+    [0, 25, 50, 75, 100].forEach(function(v) {
+      var y = padT + (1 - v / 100) * (h - padT - pad);
+      svg += '<line x1="' + pad + '" y1="' + y + '" x2="' + (w - padR) + '" y2="' + y + '" stroke="var(--border)" stroke-width="0.5"/>';
+      svg += '<text x="' + (pad - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-size="10" fill="var(--text-muted)">' + v + '</text>';
+    });
+
+    // 70% passing line
+    var passY = padT + (1 - 70 / 100) * (h - padT - pad);
+    svg += '<line x1="' + pad + '" y1="' + passY + '" x2="' + (w - padR) + '" y2="' + passY + '" stroke="var(--correct)" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>';
+    svg += '<text x="' + (w - padR + 2) + '" y="' + (passY + 3) + '" font-size="8" fill="var(--correct)">Pass</text>';
+
+    // Area fill and line
+    svg += '<path d="' + areaD + '" fill="url(#trendGrad)"/>';
+    svg += '<path d="' + pathD + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
+
+    // Data points
+    coords.forEach(function(c, i) {
+      var color = points[i] >= 70 ? 'var(--correct)' : points[i] >= 50 ? '#ff9800' : 'var(--incorrect)';
+      svg += '<circle cx="' + c.x + '" cy="' + c.y + '" r="4" fill="' + color + '" stroke="var(--card)" stroke-width="2"/>';
+    });
+
+    svg += '</svg>';
+    return svg;
+  },
+
+  sectionBreakdownHTML: function(history) {
+    // Aggregate by section across all sessions
+    var sectionData = {};
+    // Go through all individual question results from missed data
+    var data = Store.get();
+
+    // Build section data from quiz history mode entries
+    // We'll estimate from the overall data - count correct/total per section from all attempts
+    var questionAttempts = {};
+    QUESTIONS.forEach(function(q) {
+      questionAttempts[q.id] = { section: q.s, correct: 0, total: 0 };
+    });
+
+    // Use missed questions to infer attempts
+    for (var qid in data.missedQuestions) {
+      if (questionAttempts[qid]) {
+        questionAttempts[qid].total += data.missedQuestions[qid] + 1;
+        questionAttempts[qid].correct += 1; // at least once correct to reduce
+      }
+    }
+
+    // Aggregate by section
+    for (var s in SECTIONS) {
+      sectionData[s] = { name: SECTIONS[s], correct: 0, total: 0 };
+    }
+
+    // Use quiz history if we have per-section data
+    history.forEach(function(h) {
+      if (h.section && h.section !== 'all' && sectionData[h.section]) {
+        sectionData[h.section].total += h.total;
+        sectionData[h.section].correct += h.score;
+      } else if (h.section === 'all' || !h.section) {
+        // Distribute proportionally across sections
+        var numSections = Object.keys(SECTIONS).length;
+        var perSection = Math.round(h.total / numSections);
+        var scorePerSection = Math.round(h.score / numSections);
+        for (var ss in sectionData) {
+          sectionData[ss].total += perSection;
+          sectionData[ss].correct += scorePerSection;
+        }
+      }
+    });
+
+    var html = '';
+    var colors = ['#c4322e','#e8524e','#ff6b35','#ff9800','#ffc107','#4caf50','#2196f3','#9c27b0','#607d8b','#795548'];
+    var idx = 0;
+    for (var sec in SECTIONS) {
+      var sd = sectionData[sec];
+      if (!sd || sd.total === 0) {
+        html += '<div class="dash-section-bar">' +
+          '<div class="dash-section-label"><span>' + SECTIONS[sec] + '</span><span style="color:var(--text-muted)">No data</span></div>' +
+          '<div class="dash-section-track"><div class="dash-section-fill" style="width:0;background:' + colors[idx % colors.length] + '"></div></div>' +
+        '</div>';
+      } else {
+        var pct = Math.round((sd.correct / sd.total) * 100);
+        var barColor = pct >= 70 ? 'var(--correct)' : pct >= 50 ? '#ff9800' : 'var(--incorrect)';
+        html += '<div class="dash-section-bar">' +
+          '<div class="dash-section-label"><span>' + SECTIONS[sec] + '</span><span style="font-weight:600;color:' + barColor + '">' + pct + '%</span></div>' +
+          '<div class="dash-section-track"><div class="dash-section-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>' +
+        '</div>';
+      }
+      idx++;
+    }
+    return html;
+  },
+
+  heatmapSVG: function(history) {
+    var w = 500, h = 100;
+    var today = new Date();
+    var dayMs = 86400000;
+    var weeks = 8;
+    var days = weeks * 7;
+    var cellSize = 12, gap = 3;
+
+    // Count sessions per day
+    var dayCounts = {};
+    history.forEach(function(s) {
+      var d = s.date.split('T')[0];
+      dayCounts[d] = (dayCounts[d] || 0) + 1;
+    });
+
+    var maxCount = Math.max(1, Math.max.apply(null, Object.values(dayCounts).concat([1])));
+    var dayLabels = ['','M','','W','','F',''];
+
+    var svg = '<svg viewBox="0 0 ' + (weeks * (cellSize + gap) + 30) + ' ' + (7 * (cellSize + gap) + 20) + '" preserveAspectRatio="xMidYMid meet">';
+
+    // Day labels
+    dayLabels.forEach(function(label, i) {
+      if (label) {
+        svg += '<text x="0" y="' + (18 + i * (cellSize + gap) + cellSize / 2 + 3) + '" font-size="9" fill="var(--text-muted)">' + label + '</text>';
+      }
+    });
+
+    // Draw cells
+    var startDate = new Date(today.getTime() - (days - 1) * dayMs);
+    // Adjust to start on Sunday
+    startDate.setDate(startDate.getDate() - startDate.getDay());
+
+    for (var week = 0; week < weeks; week++) {
+      for (var day = 0; day < 7; day++) {
+        var date = new Date(startDate.getTime() + (week * 7 + day) * dayMs);
+        if (date > today) continue;
+        var dateStr = date.toISOString().split('T')[0];
+        var count = dayCounts[dateStr] || 0;
+        var intensity = count > 0 ? 0.25 + 0.75 * (count / maxCount) : 0;
+        var fill = count > 0 ? 'var(--accent)' : 'var(--border)';
+        var opacity = count > 0 ? intensity : 0.4;
+        var x = 18 + week * (cellSize + gap);
+        var y = 18 + day * (cellSize + gap);
+        svg += '<rect x="' + x + '" y="' + y + '" width="' + cellSize + '" height="' + cellSize + '" rx="2" fill="' + fill + '" opacity="' + opacity + '"/>';
+      }
+    }
+
+    svg += '</svg>';
+    return svg;
+  },
+
+  recentSessionsHTML: function(history) {
+    var recent = history.slice(-8).reverse();
+    var html = '';
+    recent.forEach(function(s) {
+      var d = new Date(s.date);
+      var dateStr = d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+      var timeStr = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      var pct = s.total > 0 ? Math.round((s.score / s.total) * 100) : 0;
+      var color = pct >= 70 ? 'var(--correct)' : pct >= 50 ? '#ff9800' : 'var(--incorrect)';
+      var modeLabel = s.mode === 'test' ? 'Full Test' : s.mode === 'quiz' ? 'Quick Quiz' : s.mode === 'review' ? 'Review' : s.mode;
+      var timeElapsed = '';
+      if (s.timeSeconds) {
+        var m = Math.floor(s.timeSeconds / 60);
+        var sec = s.timeSeconds % 60;
+        timeElapsed = ' | ' + m + ':' + (sec < 10 ? '0' : '') + sec;
+      }
+      html += '<div class="history-item">' +
+        '<div><span style="font-weight:600">' + modeLabel + '</span>' +
+          '<span style="color:var(--text-muted);font-size:0.8rem"> ' + dateStr + ' ' + timeStr + timeElapsed + '</span></div>' +
+        '<div style="font-weight:700;color:' + color + '">' + s.score + '/' + s.total + ' (' + pct + '%)</div>' +
+      '</div>';
+    });
+    return html || '<div class="dash-empty">No sessions recorded yet</div>';
+  },
+
+  diagramsHTML: function() {
+    var html = '<h2 style="margin:2rem 0 1rem;font-size:1.2rem">&#x1F4D0; Study Diagrams</h2>';
+
+    // Conjugate Weekly Template
+    html += '<div class="diagram-card">' +
+      '<h3>&#x1F4C5; Conjugate Training Week</h3>' +
+      this.weekTemplateSVG() +
+      '<p class="diagram-caption">The 4-day Conjugate training split: two upper-body and two lower-body sessions, alternating Max Effort and Dynamic Effort methods.</p>' +
+    '</div>';
+
+    // Prilepin's Table
+    html += '<div class="diagram-card">' +
+      '<h3>&#x1F4CA; Prilepin\'s Table</h3>' +
+      this.prilepinSVG() +
+      '<p class="diagram-caption">Optimal rep ranges by intensity zone. Originally from Soviet Olympic weightlifting research, adapted by Louie Simmons for powerlifting.</p>' +
+    '</div>';
+
+    // Force-Velocity Curve
+    html += '<div class="diagram-card">' +
+      '<h3>&#x26A1; Force-Velocity Curve</h3>' +
+      this.forceVelocitySVG() +
+      '<p class="diagram-caption">The inverse relationship between force and velocity. The Conjugate Method trains across the entire curve simultaneously.</p>' +
+    '</div>';
+
+    return html;
+  },
+
+  weekTemplateSVG: function() {
+    var w = 500, h = 220;
+    var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">';
+
+    var days = [
+      { label: 'MONDAY', sub: 'Max Effort', type: 'Upper Body', color: '#c4322e', desc: '1RM or 3RM on press variation' },
+      { label: 'WEDNESDAY', sub: 'Max Effort', type: 'Lower Body', color: '#e8524e', desc: '1RM or 3RM on squat/pull variation' },
+      { label: 'FRIDAY', sub: 'Dynamic Effort', type: 'Upper Body', color: '#2196f3', desc: '9x3 bench @ 50-60% + bands/chains' },
+      { label: 'SATURDAY', sub: 'Dynamic Effort', type: 'Lower Body', color: '#1976d2', desc: '12x2 box squat @ 50-60% + accommodating resistance' }
+    ];
+
+    var cardW = 110, cardH = 155, gap = 8;
+    var totalW = days.length * cardW + (days.length - 1) * gap;
+    var startX = (w - totalW) / 2;
+
+    days.forEach(function(d, i) {
+      var x = startX + i * (cardW + gap);
+      var y = 15;
+
+      // Card background
+      svg += '<rect x="' + x + '" y="' + y + '" width="' + cardW + '" height="' + cardH + '" rx="8" fill="var(--card)" stroke="var(--border)" stroke-width="1.5"/>';
+
+      // Color header bar
+      svg += '<rect x="' + x + '" y="' + y + '" width="' + cardW + '" height="28" rx="8" fill="' + d.color + '"/>';
+      svg += '<rect x="' + x + '" y="' + (y + 20) + '" width="' + cardW + '" height="8" fill="' + d.color + '"/>';
+
+      // Day label
+      svg += '<text x="' + (x + cardW/2) + '" y="' + (y + 19) + '" text-anchor="middle" font-size="9" font-weight="700" fill="white">' + d.label + '</text>';
+
+      // Method
+      svg += '<text x="' + (x + cardW/2) + '" y="' + (y + 48) + '" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text)">' + d.sub + '</text>';
+
+      // Body part
+      svg += '<text x="' + (x + cardW/2) + '" y="' + (y + 65) + '" text-anchor="middle" font-size="10" fill="var(--text-muted)">' + d.type + '</text>';
+
+      // Divider
+      svg += '<line x1="' + (x + 10) + '" y1="' + (y + 75) + '" x2="' + (x + cardW - 10) + '" y2="' + (y + 75) + '" stroke="var(--border)" stroke-width="0.5"/>';
+
+      // Description (wrapped manually)
+      var words = d.desc.split(' ');
+      var lines = [], line = '';
+      words.forEach(function(word) {
+        if ((line + ' ' + word).length > 16) { lines.push(line); line = word; }
+        else { line = line ? line + ' ' + word : word; }
+      });
+      if (line) lines.push(line);
+      lines.forEach(function(l, li) {
+        svg += '<text x="' + (x + cardW/2) + '" y="' + (y + 92 + li * 14) + '" text-anchor="middle" font-size="8.5" fill="var(--text-muted)">' + l + '</text>';
+      });
+    });
+
+    // Bottom note
+    svg += '<text x="' + (w/2) + '" y="' + (h - 15) + '" text-anchor="middle" font-size="9" fill="var(--text-muted)" font-style="italic">+ Repeated Effort (accessories) after every main movement</text>';
+
+    svg += '</svg>';
+    return svg;
+  },
+
+  prilepinSVG: function() {
+    var w = 500, h = 200;
+    var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">';
+
+    var rows = [
+      { pct: '55-65%', reps: '3-6', optimal: '24', range: '18-30', color: '#4caf50' },
+      { pct: '70-80%', reps: '3-6', optimal: '18', range: '12-24', color: '#ff9800' },
+      { pct: '80-90%', reps: '2-4', optimal: '15', range: '10-20', color: '#e8524e' },
+      { pct: '90%+',   reps: '1-2', optimal: '7',  range: '4-10',  color: '#c4322e' }
+    ];
+
+    var colX = [20, 120, 220, 320, 420];
+    var rowH = 34, startY = 45;
+
+    // Header
+    var headers = ['Intensity', 'Reps/Set', 'Optimal Total', 'Rep Range'];
+    svg += '<rect x="10" y="12" width="' + (w - 20) + '" height="28" rx="6" fill="var(--accent)"/>';
+    headers.forEach(function(h, i) {
+      svg += '<text x="' + (colX[i] + 45) + '" y="31" text-anchor="middle" font-size="10" font-weight="700" fill="white">' + h + '</text>';
+    });
+
+    // Data rows
+    rows.forEach(function(r, i) {
+      var y = startY + i * rowH;
+      var bgOpacity = i % 2 === 0 ? '0.05' : '0';
+      svg += '<rect x="10" y="' + y + '" width="' + (w - 20) + '" height="' + rowH + '" rx="4" fill="var(--text)" opacity="' + bgOpacity + '"/>';
+
+      // Intensity with color dot
+      svg += '<circle cx="' + (colX[0] + 15) + '" cy="' + (y + rowH/2) + '" r="5" fill="' + r.color + '"/>';
+      svg += '<text x="' + (colX[0] + 25) + '" y="' + (y + rowH/2 + 4) + '" font-size="12" font-weight="700" fill="var(--text)">' + r.pct + '</text>';
+
+      svg += '<text x="' + (colX[1] + 45) + '" y="' + (y + rowH/2 + 4) + '" text-anchor="middle" font-size="11" fill="var(--text)">' + r.reps + '</text>';
+
+      // Optimal - highlighted
+      svg += '<rect x="' + (colX[2] + 20) + '" y="' + (y + 5) + '" width="50" height="' + (rowH - 10) + '" rx="4" fill="' + r.color + '" opacity="0.15"/>';
+      svg += '<text x="' + (colX[2] + 45) + '" y="' + (y + rowH/2 + 4) + '" text-anchor="middle" font-size="13" font-weight="700" fill="' + r.color + '">' + r.optimal + '</text>';
+
+      svg += '<text x="' + (colX[3] + 45) + '" y="' + (y + rowH/2 + 4) + '" text-anchor="middle" font-size="11" fill="var(--text-muted)">' + r.range + '</text>';
+    });
+
+    svg += '</svg>';
+    return svg;
+  },
+
+  forceVelocitySVG: function() {
+    var w = 500, h = 280;
+    var pad = 55, padR = 30, padT = 20, padB = 50;
+    var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">';
+
+    var plotW = w - pad - padR, plotH = h - padT - padB;
+
+    // Axes
+    svg += '<line x1="' + pad + '" y1="' + padT + '" x2="' + pad + '" y2="' + (h - padB) + '" stroke="var(--text)" stroke-width="1.5"/>';
+    svg += '<line x1="' + pad + '" y1="' + (h - padB) + '" x2="' + (w - padR) + '" y2="' + (h - padB) + '" stroke="var(--text)" stroke-width="1.5"/>';
+
+    // Axis labels
+    svg += '<text x="15" y="' + (h/2 - 20) + '" font-size="11" font-weight="600" fill="var(--text)" transform="rotate(-90,15,' + (h/2 - 20) + ')">FORCE</text>';
+    svg += '<text x="' + (w/2) + '" y="' + (h - 8) + '" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text)">VELOCITY</text>';
+
+    // Curve (inverse relationship)
+    var curvePoints = [];
+    for (var i = 0; i <= 20; i++) {
+      var t = i / 20;
+      var x = pad + t * plotW;
+      var y = padT + (1 - Math.pow(1 - t, 1.8)) * plotH;
+      curvePoints.push(x + ',' + y);
+    }
+    svg += '<polyline points="' + curvePoints.join(' ') + '" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>';
+
+    // Training zones
+    var zones = [
+      { x: 0.08, y: 0.85, label: 'Max Effort', sub: 'ME Squat/Bench', color: '#c4322e' },
+      { x: 0.25, y: 0.58, label: 'Strength-Speed', sub: 'Heavy DE Work', color: '#e8524e' },
+      { x: 0.50, y: 0.30, label: 'Speed-Strength', sub: 'DE with Bands', color: '#2196f3' },
+      { x: 0.80, y: 0.08, label: 'Speed', sub: 'Explosive Throws', color: '#4caf50' }
+    ];
+
+    zones.forEach(function(z) {
+      var cx = pad + z.x * plotW;
+      var cy = padT + (1 - z.y) * plotH;
+      svg += '<circle cx="' + cx + '" cy="' + cy + '" r="6" fill="' + z.color + '" stroke="var(--card)" stroke-width="2"/>';
+      var textX = cx + (z.x < 0.5 ? 14 : -14);
+      var anchor = z.x < 0.5 ? 'start' : 'end';
+      svg += '<text x="' + textX + '" y="' + (cy - 6) + '" text-anchor="' + anchor + '" font-size="10" font-weight="700" fill="' + z.color + '">' + z.label + '</text>';
+      svg += '<text x="' + textX + '" y="' + (cy + 8) + '" text-anchor="' + anchor + '" font-size="8" fill="var(--text-muted)">' + z.sub + '</text>';
+    });
+
+    // Arrow heads on axes
+    svg += '<polygon points="' + pad + ',' + (padT - 5) + ' ' + (pad - 4) + ',' + (padT + 5) + ' ' + (pad + 4) + ',' + (padT + 5) + '" fill="var(--text)"/>';
+    svg += '<polygon points="' + (w - padR + 5) + ',' + (h - padB) + ' ' + (w - padR - 5) + ',' + (h - padB - 4) + ' ' + (w - padR - 5) + ',' + (h - padB + 4) + '" fill="var(--text)"/>';
+
+    svg += '</svg>';
+    return svg;
+  }
+};
+
+// =======================================
 // SURVEY / FEEDBACK
 // =======================================
 var SV = {
   feedbackKey: 'conjugate_feedback_log',
 
   start: function() {
-    showPanel('survey-panel');
+    showMode('survey');
     var panel = document.getElementById('survey-panel');
     var hour = new Date().getHours();
     var greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -1588,6 +2168,7 @@ function initApp() {
   document.getElementById('qz-mode-btn').addEventListener('click', function() { QZ.setup(); });
   document.getElementById('ft-mode-btn').addEventListener('click', function() { FT.start(); });
   document.getElementById('review-mode-btn').addEventListener('click', function() { RV.start(); });
+  document.getElementById('dash-mode-btn').addEventListener('click', function() { DASH.start(); });
   document.getElementById('survey-mode-btn').addEventListener('click', function() { SV.start(); });
 
   // Update stats
