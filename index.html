@@ -20,6 +20,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
+<!-- Google Identity Services (for WIP Lab auth) — uncomment when GOOGLE_CLIENT_ID is set -->
+<!-- <script src="https://accounts.google.com/gsi/client" async defer></script> -->
+
 <style>
 /* =================== THEME VARIABLES =================== */
 :root {
@@ -53,7 +56,7 @@
   --incorrect-bg: #3a1a1a;
   --neutral-bg: #1a2a3a;
   --text: #e0e0e0;
-  --text-muted: #999;
+  --text-muted: #b5b5b5;
   --border: #333344;
   --shadow: 0 2px 8px rgba(0,0,0,0.2);
   --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
@@ -62,11 +65,35 @@
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
+
+/* iOS Safari: prevent zoom on focus by ensuring 16px input font, and disable tap highlight everywhere */
+input, textarea, select { font-size: 16px; }
+button, [role="button"], a, label { -webkit-tap-highlight-color: transparent; }
+
+/* Global focus-visible ring for keyboard users */
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: inherit; }
+*:focus:not(:focus-visible) { outline: none; }
+
+/* Disable hover effects on touch devices to prevent stuck-state after tap */
+@media (hover: none) {
+  *:hover { transform: none !important; }
+  .mode-card:hover, .btn:hover, .quiz-opt:hover, .lab-tool-card:hover,
+  .focus-option:hover, .section-chip:hover, .lab-rank-btn:hover,
+  .options label:hover, .tf-options label:hover, .flag-btn:hover,
+  .icon-btn:hover, .sync-btn-primary:hover, .lab-comment-submit:hover,
+  .lab-back-btn:hover, .lab-export-btn:hover, .btn-review:hover, .btn-known:hover {
+    /* Reset to base state on touch — :active still provides tap feedback */
+    background-color: inherit; border-color: inherit; box-shadow: inherit;
+    transform: none; opacity: 1;
+  }
+}
+
 body {
   font-family:'Inter',system-ui,-apple-system,sans-serif;
   background:var(--bg); color:var(--text); line-height:1.6;
   -webkit-text-size-adjust:100%;
   padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   transition: background-color 0.3s, color 0.3s;
 }
 
@@ -87,7 +114,7 @@ header p { font-size:0.9rem; opacity:0.85; }
 }
 .icon-btn {
   background: rgba(255,255,255,0.15); border: none; color: white;
-  width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+  width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   font-size: 1.1rem; transition: background 0.2s;
   -webkit-tap-highlight-color: transparent;
@@ -117,11 +144,11 @@ header p { font-size:0.9rem; opacity:0.85; }
 .btn-primary:hover { background:var(--accent-light); border-color:var(--accent-light); }
 .btn-sm { padding:0.4rem 0.8rem; font-size:0.8rem; }
 .btn-lg { padding:0.8rem 2rem; font-size:1.05rem; }
-.btn-review { background:#fff3e0; border-color:#ff9800; color:#e65100; }
-.btn-review:hover { background:#ffe0b2; }
+.btn-review { background:var(--incorrect-bg); border-color:var(--incorrect); color:var(--incorrect); }
+.btn-review:hover { background:#f8c4c4; }
 .btn-known { background:var(--correct-bg); border-color:var(--correct); color:var(--correct); }
 .btn-known:hover { background:#c8e6c9; }
-[data-theme="dark"] .btn-review { background:#3a2a10; color:#ff9800; border-color:#ff9800; }
+[data-theme="dark"] .btn-review { background:#3a1a1a; color:#e8524e; border-color:#c4322e; }
 
 /* =================== MODE SELECTOR =================== */
 #mode-selector {
@@ -211,13 +238,6 @@ header p { font-size:0.9rem; opacity:0.85; }
 .setup-group { margin-bottom:1.5rem; }
 .setup-group label { display:block; font-weight:600; font-size:0.9rem; margin-bottom:0.5rem; }
 .setup-options { display:flex; gap:0.5rem; flex-wrap:wrap; }
-.setup-btn {
-  padding:0.5rem 1.2rem; border:2px solid var(--border); border-radius:8px;
-  background:var(--input-bg); color:var(--text); cursor:pointer;
-  font-family:inherit; font-size:0.9rem; transition:all 0.2s;
-}
-.setup-btn.active { background:var(--accent); color:white; border-color:var(--accent); }
-.setup-btn:hover { border-color:var(--accent); }
 .quiz-header {
   display:flex; justify-content:space-between; align-items:center;
   padding:1rem 0; flex-wrap:wrap; gap:0.5rem;
@@ -277,6 +297,9 @@ header p { font-size:0.9rem; opacity:0.85; }
 }
 .question-card.graded-correct { border-color:var(--correct); background:var(--correct-bg); }
 .question-card.graded-incorrect { border-color:var(--incorrect); background:var(--incorrect-bg); }
+.question-card.graded-skipped { border-color:#ff9800; background:#fff3e0; }
+[data-theme="dark"] .question-card.graded-skipped { background:#2a2010; border-color:#ff9800; }
+.question-card.graded-skipped .result-badge { background:#ff9800; color:white; }
 .q-header { display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem; flex-wrap:wrap; }
 .q-number {
   display:inline-block; background:var(--accent); color:white;
@@ -366,9 +389,9 @@ header p { font-size:0.9rem; opacity:0.85; }
 /* =================== FLAG BUTTON =================== */
 .flag-btn {
   display:inline-flex; align-items:center; gap:0.3rem;
-  padding:0.35rem 0.7rem; border:1.5px solid #ff9800; border-radius:6px;
-  background:transparent; color:#ff9800; font-size:0.75rem; font-weight:600;
-  cursor:pointer; transition:all 0.2s; font-family:inherit;
+  padding:0.5rem 0.9rem; border:1.5px solid #ff9800; border-radius:6px;
+  background:transparent; color:#ff9800; font-size:0.8rem; font-weight:600;
+  cursor:pointer; transition:all 0.2s; font-family:inherit; min-height:36px;
   -webkit-tap-highlight-color:transparent; margin-top:0.75rem;
 }
 .flag-btn:hover { background:#fff3e0; }
@@ -490,6 +513,7 @@ header p { font-size:0.9rem; opacity:0.85; }
 .mode-card:nth-child(5) { animation-delay:0.2s; }
 .mode-card:nth-child(6) { animation-delay:0.25s; }
 .mode-card:nth-child(7) { animation-delay:0.3s; }
+.mode-card:nth-child(8) { animation-delay:0.35s; }
 .mode-card:active { transform:scale(0.97) !important; }
 
 @keyframes shake {
@@ -519,7 +543,7 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 }
 .toast {
   position:fixed; top:0; left:0; right:0; z-index:9999;
-  padding:1rem 1.5rem; text-align:center;
+  padding:calc(1rem + env(safe-area-inset-top)) 1.5rem 1rem; text-align:center;
   background:linear-gradient(135deg,#1a1a2e,#2a2a4e); color:white;
   font-weight:600; font-size:0.95rem;
   box-shadow:0 4px 20px rgba(0,0,0,0.3);
@@ -551,6 +575,183 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 .badge-name { font-size:0.7rem; font-weight:600; line-height:1.2; }
 .badge-check { font-size:0.65rem; color:var(--correct); }
 
+/* =================== WIP LAB =================== */
+.lab-wip-badge {
+  display:inline-block; background:#9333ea; color:white; font-size:0.65rem;
+  font-weight:700; padding:0.15rem 0.5rem; border-radius:10px; vertical-align:middle;
+  margin-left:0.35rem; letter-spacing:0.5px;
+}
+.lab-header {
+  background:linear-gradient(135deg,#9333ea 0%,#6d28d9 100%);
+  color:white; padding:1.5rem; border-radius:var(--radius); margin-bottom:1.5rem;
+  text-align:center;
+}
+.lab-header h2 { font-size:1.5rem; margin-bottom:0.25rem; }
+.lab-header p { opacity:0.85; font-size:0.9rem; }
+.lab-auth-bar {
+  display:flex; align-items:center; justify-content:center; gap:0.75rem;
+  padding:0.75rem; background:var(--card); border-radius:var(--radius);
+  margin-bottom:1rem; border:1px solid var(--border); font-size:0.85rem;
+}
+.lab-auth-bar img { width:28px; height:28px; border-radius:50%; }
+.lab-auth-bar .lab-signout { color:var(--accent); cursor:pointer; text-decoration:underline; border:none; background:none; font-size:0.8rem; }
+.lab-tools-grid {
+  display:grid; grid-template-columns:1fr; gap:1rem; margin-bottom:1.5rem;
+}
+.lab-tool-card {
+  background:var(--card); border-radius:var(--radius); border:2px solid var(--border);
+  overflow:hidden; transition:border-color 0.3s, box-shadow 0.3s;
+  cursor:pointer;
+}
+.lab-tool-card:hover { border-color:#9333ea; box-shadow:var(--shadow-lg); }
+.lab-tool-card-header {
+  display:flex; align-items:center; gap:0.75rem; padding:1rem 1.25rem;
+}
+.lab-tool-card-header .lab-tool-icon { font-size:1.6rem; }
+.lab-tool-card-header .lab-tool-name { font-weight:600; font-size:1rem; flex:1; }
+.lab-tool-card-header .lab-expand-arrow { font-size:0.9rem; color:var(--text-muted); transition:transform 0.3s; }
+.lab-tool-card.expanded .lab-expand-arrow { transform:rotate(180deg); }
+.lab-tool-desc { padding:0 1.25rem 0.75rem; font-size:0.85rem; color:var(--text-muted); line-height:1.5; }
+.lab-tool-body {
+  display:none; padding:0 1.25rem 1.25rem; border-top:1px solid var(--border);
+}
+.lab-tool-card.expanded .lab-tool-body { display:block; padding-top:1rem; }
+.lab-wireframe {
+  background:var(--neutral-bg); border-radius:8px; padding:1rem; margin-bottom:1rem;
+  text-align:center;
+}
+.lab-wireframe svg { max-width:100%; height:auto; }
+.lab-rank-row {
+  display:flex; align-items:center; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap;
+}
+.lab-rank-label { font-size:0.85rem; font-weight:600; margin-right:0.25rem; }
+.lab-rank-btn {
+  width:44px; height:44px; border-radius:50%; border:2px solid var(--border);
+  background:var(--card); font-weight:700; font-size:0.95rem; cursor:pointer;
+  transition:all 0.2s; color:var(--text);
+}
+.lab-rank-btn:hover { border-color:#9333ea; }
+.lab-rank-btn.active { background:#9333ea; color:white; border-color:#9333ea; }
+.lab-comment-area { margin-bottom:1rem; }
+.lab-comment-area textarea {
+  width:100%; min-height:70px; border:2px solid var(--border); border-radius:8px;
+  padding:0.6rem; font-family:inherit; font-size:0.85rem; resize:vertical;
+  background:var(--input-bg); color:var(--text); transition:border-color 0.2s;
+}
+.lab-comment-area textarea:focus { border-color:#9333ea; outline:none; }
+.lab-comment-submit {
+  margin-top:0.5rem; background:#9333ea; color:white; border:none;
+  padding:0.5rem 1.25rem; border-radius:8px; font-weight:600; cursor:pointer;
+  font-size:0.85rem; transition:background 0.2s;
+}
+.lab-comment-submit:hover { background:#7e22ce; }
+.lab-comment-history { margin-top:0.75rem; }
+.lab-comment-entry {
+  padding:0.5rem 0; border-top:1px solid var(--border); font-size:0.8rem;
+}
+.lab-comment-date { color:var(--text-muted); font-size:0.75rem; }
+.lab-idea-box {
+  background:var(--card); border-radius:var(--radius); border:2px dashed #9333ea;
+  padding:1.25rem; text-align:center;
+}
+.lab-idea-box h3 { font-size:1rem; margin-bottom:0.5rem; color:#9333ea; }
+.lab-idea-box textarea {
+  width:100%; min-height:60px; border:2px solid var(--border); border-radius:8px;
+  padding:0.6rem; font-family:inherit; font-size:0.85rem; resize:vertical;
+  background:var(--input-bg); color:var(--text); margin-bottom:0.5rem;
+}
+.lab-idea-box textarea:focus { border-color:#9333ea; outline:none; }
+.lab-ideas-list { text-align:left; margin-top:0.75rem; }
+.lab-audit-summary {
+  margin-top:1.5rem; padding:1rem; background:var(--card); border-radius:var(--radius);
+  border:1px solid var(--border); font-size:0.8rem; color:var(--text-muted);
+}
+.lab-audit-summary strong { color:var(--text); }
+.lab-back-btn {
+  display:inline-flex; align-items:center; gap:0.4rem; padding:0.5rem 1.25rem;
+  background:#9333ea; border:none; border-radius:8px;
+  cursor:pointer; font-size:0.85rem; font-weight:600; color:white;
+  transition:background 0.2s; margin-bottom:1rem;
+}
+.lab-back-btn:hover { background:#7e22ce; }
+.lab-export-btn {
+  display:inline-block; margin-top:0.5rem; background:none; border:1px solid var(--border);
+  color:var(--text-muted); padding:0.35rem 0.75rem; border-radius:6px; font-size:0.75rem;
+  cursor:pointer; transition:border-color 0.2s;
+}
+.lab-export-btn:hover { border-color:#9333ea; color:#9333ea; }
+
+/* =================== SYNC =================== */
+.sync-overlay {
+  position:fixed; top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,0.6); z-index:1000;
+  display:flex; align-items:flex-start; justify-content:center;
+  padding:max(2rem, env(safe-area-inset-top)) 1rem max(2rem, env(safe-area-inset-bottom));
+  animation:fadeIn 0.2s ease; overflow-y:auto;
+}
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.sync-modal {
+  background:var(--card); border-radius:var(--radius); padding:1.5rem;
+  max-width:420px; width:100%;
+  box-shadow:var(--shadow-lg); position:relative;
+}
+.sync-modal h2 { font-size:1.2rem; margin-bottom:0.25rem; }
+.sync-modal p { font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem; line-height:1.5; }
+.sync-close {
+  position:absolute; top:0.5rem; right:0.5rem; background:none; border:none;
+  font-size:1.5rem; cursor:pointer; color:var(--text-muted);
+  width:44px; height:44px; display:flex; align-items:center; justify-content:center;
+  border-radius:50%;
+}
+.sync-close:active { background:rgba(0,0,0,0.05); }
+.sync-field { margin-bottom:1rem; }
+.sync-field label { display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.35rem; }
+.sync-field input {
+  width:100%; padding:0.6rem; border:2px solid var(--border); border-radius:8px;
+  font-size:0.95rem; background:var(--input-bg); color:var(--text);
+  font-family:inherit;
+}
+.sync-field input:focus { border-color:var(--accent); outline:none; }
+.sync-btn {
+  width:100%; padding:0.7rem; border:none; border-radius:8px;
+  font-weight:600; font-size:0.9rem; cursor:pointer; margin-bottom:0.5rem;
+  transition:background 0.2s;
+}
+.sync-btn-primary { background:var(--accent); color:white; }
+.sync-btn-primary:hover { background:var(--accent-light); }
+.sync-btn-secondary { background:var(--neutral-bg); color:var(--text); }
+.sync-btn-secondary:hover { opacity:0.8; }
+.sync-divider {
+  text-align:center; color:var(--text-muted); font-size:0.8rem;
+  margin:1rem 0; position:relative;
+}
+.sync-divider::before, .sync-divider::after {
+  content:''; position:absolute; top:50%; width:35%;
+  border-top:1px solid var(--border);
+}
+.sync-divider::before { left:0; }
+.sync-divider::after { right:0; }
+.sync-status {
+  padding:0.6rem; border-radius:8px; font-size:0.8rem;
+  margin-top:0.5rem; text-align:center;
+}
+.sync-status.success { background:var(--correct-bg); color:var(--correct); }
+.sync-status.error { background:var(--incorrect-bg); color:var(--incorrect); }
+.sync-user-bar {
+  display:flex; align-items:center; gap:0.5rem;
+  padding:0.4rem 0.7rem; background:rgba(255,255,255,0.1);
+  border-radius:20px; font-size:0.75rem; color:white;
+  max-width:150px; overflow:hidden;
+}
+.sync-user-bar span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sync-import-area { margin-top:0.75rem; }
+.sync-import-area textarea {
+  width:100%; min-height:60px; border:2px solid var(--border); border-radius:8px;
+  padding:0.6rem; font-family:monospace; font-size:0.75rem; resize:vertical;
+  background:var(--input-bg); color:var(--text);
+}
+.sync-import-area textarea:focus { border-color:var(--accent); outline:none; }
+
 /* =================== PRINT =================== */
 @media print {
   header { background:white !important; color:black; border-bottom:2px solid black; }
@@ -564,6 +765,8 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 
 <header>
   <div class="header-controls">
+    <span id="syncUserBar" class="sync-user-bar" style="display:none"></span>
+    <button class="icon-btn" id="syncBtn" title="Sync across devices" aria-label="Sync across devices">&#x1F504;</button>
     <button class="icon-btn" id="darkModeBtn" title="Toggle dark mode" aria-label="Toggle dark mode">&#x1F319;</button>
   </div>
   <h1>Conjugate Method Study Hub</h1>
@@ -639,6 +842,11 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
     <h3>Feedback</h3>
     <p>Help us make this app better! Flag confusing questions, suggest topics, or share what's working.</p>
   </div>
+  <div class="mode-card" role="button" tabindex="0" id="lab-mode-btn">
+    <span class="mode-icon">&#x1F9EA;</span>
+    <h3>WIP Lab <span class="lab-wip-badge">WIP</span></h3>
+    <p>Interactive coaching tools — rank, comment, and shape what gets built next.</p>
+  </div>
 </div>
 <div id="flashcard-panel" class="mode-panel"></div>
 <div id="quiz-panel" class="mode-panel"></div>
@@ -646,6 +854,7 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 <div id="review-panel" class="mode-panel"></div>
 <div id="dash-panel" class="mode-panel"></div>
 <div id="survey-panel" class="mode-panel"></div>
+<div id="lab-panel" class="mode-panel"></div>
 
 <script>
 // =======================================
@@ -805,7 +1014,7 @@ var BADGES = [
   {id:'pr_day', name:'PR Day', icon:'&#x1F3C6;', desc:'Score 100% on any quiz', check: function(d){ return d.quizHistory.some(function(h){ return h.score === h.total && h.total > 0; }); }},
   {id:'passing', name:'Passing Grade', icon:'&#x2705;', desc:'Score 70%+ on a full practice test', check: function(d){ return d.quizHistory.some(function(h){ return h.mode === 'test' && h.total > 0 && (h.score/h.total) >= 0.7; }); }},
   {id:'streak_3', name:'Three-Peat', icon:'&#x1F4C5;', desc:'3-day study streak', check: function(d){ return d.studyStreak.longest >= 3; }},
-  {id:'streak_7', name:"Louie\\'s Approval", icon:'&#x1F4AA;', desc:'7-day study streak', check: function(d){ return d.studyStreak.longest >= 7; }},
+  {id:'streak_7', name:"Louie's Approval", icon:'&#x1F4AA;', desc:'7-day study streak', check: function(d){ return d.studyStreak.longest >= 7; }},
   {id:'streak_30', name:'Iron Will', icon:'&#x26A1;', desc:'30-day study streak', check: function(d){ return d.studyStreak.longest >= 30; }},
   {id:'clean_slate', name:'Clean Slate', icon:'&#x1F9F9;', desc:'Clear your review list', check: function(d){ return d.totalSessions >= 3 && Object.keys(d.missedQuestions).length === 0; }},
   {id:'night_owl', name:'Night Owl', icon:'&#x1F989;', desc:'Study after 10pm', check: function(d){ return d.quizHistory.some(function(h){ return new Date(h.date).getHours() >= 22; }); }},
@@ -917,6 +1126,10 @@ function animateCount(elementId, target, durationMs) {
   }
   el.textContent = '0%';
   requestAnimationFrame(step);
+  // Fallback: ensure final value is shown even if RAF is paused (backgrounded tabs)
+  setTimeout(function() {
+    if (el && el.textContent !== target + '%') el.textContent = target + '%';
+  }, dur + 100);
 }
 
 // =======================================
@@ -952,7 +1165,7 @@ function updateWeakestSection() {
     document.getElementById('weakSectionTitle').textContent = 'Drill: ' + SECTIONS[worstSection];
     document.getElementById('weakSectionDesc').textContent = 'Your most-missed section. Focus here to improve.';
     document.getElementById('weakSectionBadge').textContent = worstCount + ' missed';
-    card.onclick = function() { QZ._weakSection = worstSection; QZ.beginWeak(worstSection); };
+    card.onclick = function() { QZ.beginWeak(worstSection); };
   }
 }
 
@@ -974,24 +1187,22 @@ var Store = {
   },
 
   load: function() {
-    try {
-      var raw = localStorage.getItem(this._key);
-      if (raw) {
-        var parsed = JSON.parse(raw);
-        // Merge with defaults for forward-compatibility
-        var def = this._default();
-        for (var k in def) {
-          if (!(k in parsed)) parsed[k] = def[k];
-        }
-        return parsed;
+    var def = this._default();
+    var parsed = readJSON(this._key, null);
+    if (!parsed) return def;
+    // Merge with defaults for forward-compatibility (top level + nested studyStreak)
+    for (var k in def) {
+      if (!(k in parsed)) parsed[k] = def[k];
+    }
+    if (parsed.studyStreak) {
+      for (var sk in def.studyStreak) {
+        if (!(sk in parsed.studyStreak)) parsed.studyStreak[sk] = def.studyStreak[sk];
       }
-    } catch(e) {}
-    return this._default();
+    }
+    return parsed;
   },
 
-  save: function(data) {
-    try { localStorage.setItem(this._key, JSON.stringify(data)); } catch(e) {}
-  },
+  save: function(data) { writeJSON(this._key, data); },
 
   get: function() { return this.load(); },
 
@@ -1012,6 +1223,7 @@ var Store = {
   },
 
   recordSession: function(mode, score, total, section, timeSeconds) {
+    if (!total || total <= 0) return;       // don't count empty sessions toward streak/badges
     var data = this.load();
     data.quizHistory.push({
       date: new Date().toISOString(),
@@ -1023,10 +1235,10 @@ var Store = {
     if (data.quizHistory.length > 50) data.quizHistory = data.quizHistory.slice(-50);
     data.totalSessions++;
 
-    // Update streak
-    var today = new Date().toISOString().split('T')[0];
+    // Update streak (use local date, not UTC, so studying at night doesn't break streaks)
+    var today = localDateStr();
     if (data.studyStreak.lastDate !== today) {
-      var yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      var yesterday = localDateStr(new Date(Date.now() - 86400000));
       if (data.studyStreak.lastDate === yesterday) {
         data.studyStreak.current++;
       } else {
@@ -1048,12 +1260,6 @@ var Store = {
     return Object.keys(data.missedQuestions).map(Number).filter(function(id) {
       return data.missedQuestions[id] > 0;
     });
-  },
-
-  setDarkMode: function(on) {
-    var data = this.load();
-    data.darkMode = on;
-    this.save(data);
   },
 
   toggleFlag: function(questionId) {
@@ -1125,6 +1331,57 @@ function applyDarkMode(on) {
 // =======================================
 // UTILITY FUNCTIONS
 // =======================================
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// Local-time YYYY-MM-DD (avoids UTC bugs where night-time studying drops streaks)
+function localDateStr(d) {
+  d = d || new Date();
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
+// Format seconds as M:SS
+function formatMMSS(sec) {
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+// Safe localStorage read with default
+function readJSON(key, fallback) {
+  try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+  catch(e) { return fallback; }
+}
+
+// Safe localStorage write — warns user on quota errors
+function writeJSON(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+  catch(e) {
+    if (e && (e.name === 'QuotaExceededError' || e.code === 22)) {
+      try { showToast('⚠️ Storage full — sync your data and clear old sessions'); } catch(_){}
+    }
+    return false;
+  }
+}
+
+// Unified clipboard copy with fallback
+function copyToClipboard(text, successMsg) {
+  function fallback() {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch(_){}
+    document.body.removeChild(ta);
+    if (successMsg) showToast(successMsg);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      if (successMsg) showToast(successMsg);
+    }).catch(fallback);
+  } else { fallback(); }
+}
+
 function shuffle(arr) {
   for (var i = arr.length - 1; i > 0; i--) {
     var j = Math.floor(Math.random() * (i + 1));
@@ -1152,6 +1409,9 @@ function showMode(mode) {
 }
 
 function backToMenu() {
+  // Stop any running quiz timers so they don't leak when leaving mid-session
+  if (typeof QZ !== 'undefined' && QZ.timer) { clearInterval(QZ.timer); QZ.timer = null; }
+  if (typeof RV !== 'undefined' && RV.timer) { clearInterval(RV.timer); RV.timer = null; }
   showMode(null);
 }
 
@@ -1228,7 +1488,7 @@ var FC = {
       '<div class="fc-header">' +
         '<button class="btn btn-sm" onclick="backToMenu()">Back to Menu</button>' +
         '<div class="fc-progress">' + num + ' / ' + total + '</div>' +
-        '<div class="fc-score">Known: ' + this.known + ' | Review: ' + this.review + '</div>' +
+        '<div class="fc-score">✅ ' + this.known + ' | ❌ ' + this.review + '</div>' +
       '</div>' +
       '<div class="fc-progress-bar"><div class="fc-progress-fill" style="width:' + ((num/total)*100) + '%"></div></div>' +
       '<div class="fc-card-container" id="fcFlipArea" role="button" tabindex="0">' +
@@ -1239,8 +1499,8 @@ var FC = {
       '</div>' +
       '<div class="fc-hint-tap">Tap card to flip</div>' +
       '<div class="fc-actions">' +
-        '<button class="btn btn-review" type="button" onclick="FC.mark(\'review\')">Needs Review</button>' +
-        '<button class="btn btn-known" type="button" onclick="FC.mark(\'known\')">Got It</button>' +
+        '<button class="btn btn-review" type="button" onclick="FC.mark(\'review\')">❌ Got It Wrong</button>' +
+        '<button class="btn btn-known" type="button" onclick="FC.mark(\'known\')">✅ Got It Right</button>' +
       '</div>';
     var flipArea = document.getElementById('fcFlipArea');
     if (flipArea) {
@@ -1255,6 +1515,7 @@ var FC = {
 
   mark: function(type) {
     var q = this.deck[this.idx];
+    if (!q) return;          // guard against rapid double-tap past end of deck
     if (type === 'known') {
       this.known++;
       Store.recordCorrect(q.id);
@@ -1276,8 +1537,8 @@ var FC = {
       '<div class="results-card">' +
         '<h2>Flashcard Session Complete</h2>' +
         '<div class="big-score">' + pct + '%</div>' +
-        '<p>You marked <strong>' + this.known + '</strong> of <strong>' + total + '</strong> cards as known.</p>' +
-        '<p><strong>' + this.review + '</strong> cards flagged for review.</p>' +
+        '<p>You got <strong>' + this.known + '</strong> of <strong>' + total + '</strong> cards right.</p>' +
+        '<p><strong>' + this.review + '</strong> cards missed — these will show up in Review Missed.</p>' +
         '<div class="fc-results-actions">' +
           '<button class="btn btn-primary" onclick="FC.start(\'all\')">Shuffle All Again</button>' +
           '<button class="btn" onclick="backToMenu()">Back to Menu</button>' +
@@ -1479,11 +1740,6 @@ var QZ = {
     }
   },
 
-  selectCount: function(btn) {
-    btn.parentElement.querySelectorAll('.setup-btn').forEach(function(b) { b.classList.remove('active'); });
-    btn.classList.add('active');
-  },
-
   begin: function() {
     var slider = document.getElementById('qzCountSlider');
     var count = slider ? parseInt(slider.value) : 10;
@@ -1645,7 +1901,7 @@ var QZ = {
 
     return '<div class="results-card">' +
         '<h2>Quiz Complete</h2>' +
-        '<div class="big-score" id="qzBigScore">0%</div>' +
+        '<div class="big-score" id="qzBigScore">' + pct + '%</div>' +
         '<p>' + this.score + ' of ' + total + ' correct in ' + timeStr + '</p>' +
         '<p class="grade-text">' + grade + '</p>' +
         '<div class="fc-results-actions">' +
@@ -1663,6 +1919,7 @@ var FT = {
   questions: [],
 
   start: function() {
+    this._scoring = false;
     this.questions = shuffle(QUESTIONS.slice());
     showMode('test');
     this.render();
@@ -1800,6 +2057,22 @@ var FT = {
     var isCorrect = selectedVal === answer;
     var qid = parseInt(card.dataset.qid);
 
+    // Skip unanswered questions — don't count as wrong, don't pollute Store
+    if (!selected) {
+      card.classList.add('graded-skipped');
+      if (badge) badge.textContent = 'Skipped';
+      this.highlightOption(card, answer, 'option-correct');
+      reveal.className = 'answer-reveal neutral';
+      reveal.style.display = 'block';
+      if (type === 'tf') {
+        ansLabel.textContent = 'Correct Answer: ' + (answer === 'true' ? 'TRUE' : 'FALSE');
+      } else {
+        var qSkip = QUESTIONS.find(function(qq) { return qq.id === qid; });
+        if (qSkip) ansLabel.textContent = 'Correct Answer: ' + qSkip.opts[parseInt(answer)];
+      }
+      return { scored: false, skipped: true };
+    }
+
     if (isCorrect) {
       card.classList.add('graded-correct');
       if (badge) badge.textContent = 'Correct';
@@ -1809,9 +2082,9 @@ var FT = {
       return { scored: true, correct: true };
     } else {
       card.classList.add('graded-incorrect');
-      if (badge) badge.textContent = selected ? 'Incorrect' : 'No Answer';
+      if (badge) badge.textContent = 'Incorrect';
       this.highlightOption(card, answer, 'option-correct');
-      if (selected) this.highlightOption(card, selectedVal, 'option-wrong-selected');
+      this.highlightOption(card, selectedVal, 'option-wrong-selected');
       reveal.className = 'answer-reveal incorrect';
       reveal.style.display = 'block';
       if (type === 'tf') {
@@ -1826,13 +2099,16 @@ var FT = {
   },
 
   score: function() {
+    if (this._scoring) return;        // guard against double-tap
+    this._scoring = true;
     this.clearGrading();
-    var total = 0, correct = 0;
+    var total = 0, correct = 0, skipped = 0;
     var sectionScores = {};
     var self = this;
 
     document.querySelectorAll('#test-panel .question-card').forEach(function(card) {
       var result = self.gradeCard(card);
+      if (result.skipped) skipped++;
       if (result.scored) {
         total++;
         var s = card.dataset.section;
@@ -1866,10 +2142,12 @@ var FT = {
     Store.recordSession('test', correct, total);
 
     var rp = document.getElementById('ftResultsPanel');
+    var skippedNote = skipped > 0 ? '<p style="color:#ff9800;font-weight:600">⚠️ ' + skipped + ' questions skipped — not counted in score.</p>' : '';
     rp.innerHTML =
-      '<div class="big-score" id="ftBigScore">0%</div>' +
+      '<div class="big-score" id="ftBigScore">' + pct + '%</div>' +
       '<p class="grade-text">' + grade + '</p>' +
-      '<p>' + correct + ' of ' + total + ' scored questions correct. Scenario questions shown for self-assessment.</p>' +
+      '<p>' + correct + ' of ' + total + ' answered questions correct. Scenario questions shown for self-assessment.</p>' +
+      skippedNote +
       '<div class="section-breakdown">' + breakdownHTML + '</div>';
     rp.style.display = 'block';
     rp.scrollIntoView({behavior:'smooth'});
@@ -1877,15 +2155,43 @@ var FT = {
     if (pct >= 80) fireConfetti();
   },
 
+  // Show all correct answers without polluting Store (no recordCorrect/recordMiss)
   showAnswers: function() {
     this.clearGrading();
-    var self = this;
     document.querySelectorAll('#test-panel .question-card').forEach(function(card) {
-      self.gradeCard(card);
+      var qid = parseInt(card.dataset.qid);
+      var answer = card.dataset.answer;
+      var type = card.dataset.type;
+      var reveal = card.querySelector('.answer-reveal');
+      var ansLabel = reveal ? reveal.querySelector('.answer-label') : null;
+      if (type === 'scenario') {
+        if (reveal) {
+          reveal.className = 'answer-reveal neutral';
+          reveal.style.display = 'block';
+          if (ansLabel) ansLabel.textContent = 'Sample Answer:';
+        }
+        return;
+      }
+      var allOpts = card.querySelectorAll('.options label, .tf-options label');
+      allOpts.forEach(function(o) {
+        var input = o.querySelector('input');
+        if (input && input.value === answer) o.classList.add('option-correct');
+      });
+      if (reveal && ansLabel) {
+        reveal.className = 'answer-reveal neutral';
+        reveal.style.display = 'block';
+        if (type === 'tf') {
+          ansLabel.textContent = 'Correct Answer: ' + (answer === 'true' ? 'TRUE' : 'FALSE');
+        } else {
+          var q = QUESTIONS.find(function(qq) { return qq.id === qid; });
+          if (q) ansLabel.textContent = 'Correct Answer: ' + q.opts[parseInt(answer)];
+        }
+      }
     });
   },
 
   reset: function() {
+    this._scoring = false;
     this.clearGrading();
     document.querySelectorAll('#test-panel input[type="radio"]').forEach(function(r) { r.checked = false; });
     document.querySelectorAll('#test-panel textarea').forEach(function(t) { t.value = ''; });
@@ -1910,7 +2216,7 @@ var RV = {
   start: function() {
     var missedIds = Store.getMissedIds();
     if (missedIds.length === 0) {
-      alert('No missed questions to review! Keep studying.');
+      showToast('No missed questions to review — keep studying!');
       return;
     }
     var pool = QUESTIONS.filter(function(q) {
@@ -2021,7 +2327,7 @@ var RV = {
     var remaining = Store.getMissedIds().length;
     return '<div class="results-card">' +
         '<h2>Review Session Complete</h2>' +
-        '<div class="big-score" id="rvBigScore">0%</div>' +
+        '<div class="big-score" id="rvBigScore">' + pct + '%</div>' +
         '<p>' + this.score + ' of ' + total + ' correct</p>' +
         '<p class="grade-text">' + (remaining > 0 ? remaining + ' questions still in your review list.' : 'Review list cleared! Great work.') + '</p>' +
         '<div class="fc-results-actions">' +
@@ -2192,46 +2498,17 @@ var DASH = {
   },
 
   sectionBreakdownHTML: function(history) {
-    // Aggregate by section across all sessions
-    var sectionData = {};
-    // Go through all individual question results from missed data
+    // Use the real per-question miss data: a section's "health" = % of its questions never missed
     var data = Store.get();
-
-    // Build section data from quiz history mode entries
-    // We'll estimate from the overall data - count correct/total per section from all attempts
-    var questionAttempts = {};
-    QUESTIONS.forEach(function(q) {
-      questionAttempts[q.id] = { section: q.s, correct: 0, total: 0 };
-    });
-
-    // Use missed questions to infer attempts
-    for (var qid in data.missedQuestions) {
-      if (questionAttempts[qid]) {
-        questionAttempts[qid].total += data.missedQuestions[qid] + 1;
-        questionAttempts[qid].correct += 1; // at least once correct to reduce
-      }
-    }
-
-    // Aggregate by section
+    var missed = data.missedQuestions || {};
+    var sectionData = {};
     for (var s in SECTIONS) {
-      sectionData[s] = { name: SECTIONS[s], correct: 0, total: 0 };
+      sectionData[s] = { name: SECTIONS[s], total: 0, untouched: 0 };
     }
-
-    // Use quiz history if we have per-section data
-    history.forEach(function(h) {
-      if (h.section && h.section !== 'all' && sectionData[h.section]) {
-        sectionData[h.section].total += h.total;
-        sectionData[h.section].correct += h.score;
-      } else if (h.section === 'all' || !h.section) {
-        // Distribute proportionally across sections
-        var numSections = Object.keys(SECTIONS).length;
-        var perSection = Math.round(h.total / numSections);
-        var scorePerSection = Math.round(h.score / numSections);
-        for (var ss in sectionData) {
-          sectionData[ss].total += perSection;
-          sectionData[ss].correct += scorePerSection;
-        }
-      }
+    QUESTIONS.forEach(function(q) {
+      if (!sectionData[q.s]) return;
+      sectionData[q.s].total++;
+      if (!missed[q.id]) sectionData[q.s].untouched++;
     });
 
     var html = '';
@@ -2244,10 +2521,11 @@ var DASH = {
           '<div class="dash-section-track"><div class="dash-section-fill" style="width:0;background:' + secColor + '"></div></div>' +
         '</div>';
       } else {
-        var pct = Math.round((sd.correct / sd.total) * 100);
+        var pct = Math.round((sd.untouched / sd.total) * 100);
         var barColor = pct >= 70 ? 'var(--correct)' : pct >= 50 ? '#ff9800' : 'var(--incorrect)';
+        var label = (sd.total - sd.untouched) + ' / ' + sd.total + ' missed';
         html += '<div class="dash-section-bar">' +
-          '<div class="dash-section-label"><span style="color:' + secColor + '">' + SECTIONS[sec] + '</span><span style="font-weight:600;color:' + barColor + '">' + pct + '%</span></div>' +
+          '<div class="dash-section-label"><span style="color:' + secColor + '">' + SECTIONS[sec] + '</span><span style="font-weight:600;color:' + barColor + '">' + label + '</span></div>' +
           '<div class="dash-section-track"><div class="dash-section-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>' +
         '</div>';
       }
@@ -2263,14 +2541,16 @@ var DASH = {
     var days = weeks * 7;
     var cellSize = 12, gap = 3;
 
-    // Count sessions per day
+    // Count sessions per day (local time, to match streak calculation)
     var dayCounts = {};
     history.forEach(function(s) {
-      var d = s.date.split('T')[0];
+      var d = localDateStr(new Date(s.date));
       dayCounts[d] = (dayCounts[d] || 0) + 1;
     });
 
-    var maxCount = Math.max(1, Math.max.apply(null, Object.values(dayCounts).concat([1])));
+    // Object.values not available on iOS < 10.3 — use Object.keys/map instead
+    var counts = Object.keys(dayCounts).map(function(k) { return dayCounts[k]; });
+    var maxCount = Math.max(1, counts.length ? Math.max.apply(null, counts) : 1);
     var dayLabels = ['','M','','W','','F',''];
 
     var svg = '<svg viewBox="0 0 ' + (weeks * (cellSize + gap) + 30) + ' ' + (7 * (cellSize + gap) + 20) + '" preserveAspectRatio="xMidYMid meet">';
@@ -2291,7 +2571,7 @@ var DASH = {
       for (var day = 0; day < 7; day++) {
         var date = new Date(startDate.getTime() + (week * 7 + day) * dayMs);
         if (date > today) continue;
-        var dateStr = date.toISOString().split('T')[0];
+        var dateStr = localDateStr(date);
         var count = dayCounts[dateStr] || 0;
         var intensity = count > 0 ? 0.25 + 0.75 * (count / maxCount) : 0;
         var fill = count > 0 ? 'var(--accent)' : 'var(--border)';
@@ -2651,6 +2931,830 @@ var SV = {
 };
 
 // =======================================
+// WIP LAB
+// =======================================
+var LAB = {
+  tools: [
+    { id: 'scenario', name: 'Scenario Simulator', icon: '🎯', desc: 'Walk through coaching scenarios — athlete profiles, weak points, exercise selection decisions.' },
+    { id: 'rotation', name: 'ME Rotation Planner', icon: '🔄', desc: 'Plan max effort exercise rotations across training cycles with wave patterns.' },
+    { id: 'template', name: 'Template Builder', icon: '📋', desc: 'Build complete Westside-style training templates with proper exercise selection.' },
+    { id: 'meetprep', name: 'Meet Prep Timeline', icon: '📅', desc: 'Plan the final 8–12 weeks before a powerlifting meet with deload and peaking.' },
+    { id: 'percentcalc', name: 'Percentage Calculator', icon: '🔢', desc: 'Calculate working weights from maxes using Prilepin\'s chart and wave loading.' }
+  ],
+
+  GOOGLE_CLIENT_ID: '',
+
+  _labKey: 'conjugate_lab_data',
+  _auditKey: 'conjugate_lab_audit',
+  _googleKey: 'conjugate_google_user',
+  _enterTime: null,
+  _expandedTool: null,
+
+  getLabData: function() {
+    try {
+      var raw = localStorage.getItem(this._labKey);
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return { ranks: {}, feedback: {}, ideas: [] };
+  },
+
+  saveLabData: function(data) {
+    try { localStorage.setItem(this._labKey, JSON.stringify(data)); } catch(e) {}
+  },
+
+  getAuditLog: function() {
+    try {
+      var raw = localStorage.getItem(this._auditKey);
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return [];
+  },
+
+  logAudit: function(action, toolId, extra) {
+    try {
+      var log = this.getAuditLog();
+      var entry = { action: action, timestamp: Date.now() };
+      if (toolId) entry.toolId = toolId;
+      if (extra) entry.extra = extra;
+      log.push(entry);
+      if (log.length > 500) log = log.slice(-500);
+      localStorage.setItem(this._auditKey, JSON.stringify(log));
+    } catch(e) {}
+  },
+
+  getGoogleUser: function() {
+    try {
+      var raw = localStorage.getItem(this._googleKey);
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return null;
+  },
+
+  initGoogleAuth: function(container) {
+    if (typeof google === 'undefined' || !google.accounts) {
+      container.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted)">Sign‑in unavailable offline</span>';
+      return;
+    }
+    var self = this;
+    if (this.GOOGLE_CLIENT_ID) {
+      google.accounts.id.initialize({
+        client_id: this.GOOGLE_CLIENT_ID,
+        callback: function(response) { self.handleCredentialResponse(response); }
+      });
+      google.accounts.id.renderButton(container, {
+        theme: 'outline', size: 'medium', text: 'signin_with', shape: 'pill'
+      });
+    } else {
+      container.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted)">Google sign‑in coming soon</span>';
+    }
+  },
+
+  handleCredentialResponse: function(response) {
+    try {
+      var b64 = response.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      var payload = JSON.parse(atob(b64));
+      var user = { name: payload.name, email: payload.email, picture: payload.picture };
+      localStorage.setItem(this._googleKey, JSON.stringify(user));
+      this.logAudit('google_signin');
+      this.renderAuthBar();
+      showToast('Signed in as ' + user.name);
+    } catch(e) {
+      showToast('Sign‑in failed');
+    }
+  },
+
+  signOut: function() {
+    localStorage.removeItem(this._googleKey);
+    this.renderAuthBar();
+    showToast('Signed out');
+  },
+
+  renderAuthBar: function() {
+    var bar = document.getElementById('lab-auth-bar');
+    if (!bar) return;
+    var user = this.getGoogleUser();
+    if (user) {
+      bar.innerHTML =
+        '<img src="' + esc(user.picture || '') + '" alt="">' +
+        '<span><strong>' + esc(user.name) + '</strong></span>' +
+        '<button class="lab-signout" onclick="LAB.signOut()">Sign out</button>';
+    } else {
+      bar.innerHTML = '';
+      this.initGoogleAuth(bar);
+    }
+  },
+
+  start: function() {
+    showMode('lab');
+    this._enterTime = Date.now();
+    this._expandedTool = null;
+    this.logAudit('open_lab');
+    var panel = document.getElementById('lab-panel');
+    var data = this.getLabData();
+    var self = this;
+    var html = '';
+
+    // Back button
+    html += '<div style="padding:1rem 1.5rem 0"><button class="lab-back-btn" onclick="LAB.leaveLab()">← Back</button></div>';
+
+    // Header
+    html += '<div style="padding:0 1.5rem">';
+    html += '<div class="lab-header">';
+    html += '<h2>🧪 WIP Lab</h2>';
+    html += '<p>These coaching tools are in development. Rank them, share feedback, and help shape what gets built!</p>';
+    html += '</div>';
+
+    // Auth bar
+    html += '<div class="lab-auth-bar" id="lab-auth-bar"></div>';
+
+    // Tool cards
+    html += '<div class="lab-tools-grid">';
+    self.tools.forEach(function(tool) {
+      html += self.renderToolCard(tool, data);
+    });
+    html += '</div>';
+
+    // Idea box
+    html += '<div class="lab-idea-box">';
+    html += '<h3>💡 Submit an Idea</h3>';
+    html += '<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.5rem">Have a tool idea or feature request? Tell us!</p>';
+    html += '<textarea id="lab-idea-text" placeholder="Describe your idea..."></textarea>';
+    html += '<button class="lab-comment-submit" onclick="LAB.submitIdea()">Submit Idea</button>';
+    html += self.renderIdeasList(data);
+    html += '</div>';
+
+    // Audit summary
+    html += self.getAuditSummary();
+
+    html += '</div>'; // close padding wrapper
+
+    panel.innerHTML = html;
+    self.renderAuthBar();
+  },
+
+  renderToolCard: function(tool, data) {
+    var rank = data.ranks[tool.id] || 0;
+    var feedback = data.feedback[tool.id] || [];
+    var html = '';
+
+    html += '<div class="lab-tool-card" id="lab-card-' + tool.id + '">';
+
+    // Header (clickable)
+    html += '<div class="lab-tool-card-header" onclick="LAB.expandTool(\'' + tool.id + '\')">';
+    html += '<span class="lab-tool-icon">' + tool.icon + '</span>';
+    html += '<span class="lab-tool-name">' + tool.name + ' <span class="lab-wip-badge">WIP</span></span>';
+    if (rank > 0) {
+      var starsStr = '';
+      for (var s = 0; s < rank; s++) starsStr += '★';
+      html += '<span style="font-size:0.85rem;color:#9333ea">' + starsStr + '</span>';
+    }
+    html += '<span class="lab-expand-arrow">▼</span>';
+    html += '</div>';
+
+    // Description
+    html += '<div class="lab-tool-desc">' + tool.desc + '</div>';
+
+    // Expandable body
+    html += '<div class="lab-tool-body">';
+
+    // Wireframe preview
+    html += '<div class="lab-wireframe">' + this.wireframeSVG(tool.id) + '</div>';
+
+    // Rank row (star rating: 5 = want most)
+    html += '<div class="lab-rank-row">';
+    html += '<span class="lab-rank-label">How much do you want this?</span>';
+    for (var i = 1; i <= 5; i++) {
+      var starLabel = i <= rank ? '★' : '☆';
+      html += '<button class="lab-rank-btn' + (i <= rank ? ' active' : '') + '" onclick="LAB.saveRank(\'' + tool.id + '\',' + i + ')" style="font-size:1.1rem">' + starLabel + '</button>';
+    }
+    html += '</div>';
+
+    // Comment area
+    html += '<div class="lab-comment-area">';
+    html += '<textarea id="lab-comment-' + tool.id + '" placeholder="What would you want this tool to do? How should it look?" onfocus="LAB.logAudit(\'comment_focus\',\'' + tool.id + '\')"></textarea>';
+    html += '<button class="lab-comment-submit" onclick="LAB.submitToolFeedback(\'' + tool.id + '\')">Submit Feedback</button>';
+    html += '</div>';
+
+    // Comment history
+    html += '<div class="lab-comment-history" id="lab-history-' + tool.id + '">';
+    html += this.renderCommentHistory(feedback);
+    html += '</div>';
+
+    html += '</div>'; // close body
+    html += '</div>'; // close card
+
+    return html;
+  },
+
+  renderCommentHistory: function(feedback) {
+    if (!feedback.length) return '';
+    var html = '<div style="font-size:0.8rem;font-weight:600;margin-bottom:0.25rem;color:var(--text-muted)">Previous feedback:</div>';
+    feedback.slice().reverse().forEach(function(entry) {
+      var d = new Date(entry.date);
+      html += '<div class="lab-comment-entry">';
+      html += '<span class="lab-comment-date">' + d.toLocaleDateString() + '</span> ';
+      html += esc(entry.text);
+      html += '</div>';
+    });
+    return html;
+  },
+
+  renderIdeasList: function(data) {
+    if (!data.ideas || !data.ideas.length) return '';
+    var html = '<div class="lab-ideas-list">';
+    html += '<div style="font-size:0.8rem;font-weight:600;margin:0.5rem 0;color:var(--text-muted)">Your ideas:</div>';
+    data.ideas.slice().reverse().forEach(function(idea) {
+      var d = new Date(idea.date);
+      html += '<div class="lab-comment-entry">';
+      html += '<span class="lab-comment-date">' + d.toLocaleDateString() + '</span> ';
+      html += esc(idea.text);
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
+  },
+
+  expandTool: function(toolId) {
+    var card = document.getElementById('lab-card-' + toolId);
+    if (!card) return;
+    var wasExpanded = card.classList.contains('expanded');
+
+    // Collapse all
+    document.querySelectorAll('.lab-tool-card.expanded').forEach(function(c) {
+      c.classList.remove('expanded');
+    });
+
+    if (!wasExpanded) {
+      card.classList.add('expanded');
+      this._expandedTool = toolId;
+      this.logAudit('view_tool', toolId);
+      setTimeout(function() {
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    } else {
+      this._expandedTool = null;
+    }
+  },
+
+  wireframeSVG: function(toolId) {
+    var w = 300, h = 180;
+    var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" xmlns="http://www.w3.org/2000/svg" style="max-width:' + w + 'px">';
+    var muted = '#9ca3af';
+    var accent = '#9333ea';
+
+    if (toolId === 'scenario') {
+      // Decision tree
+      svg += '<text x="150" y="16" text-anchor="middle" font-size="10" fill="' + accent + '" font-weight="600">Scenario Simulator</text>';
+      svg += '<rect x="110" y="25" width="80" height="28" rx="6" fill="' + accent + '" opacity="0.15" stroke="' + accent + '" stroke-width="1"/>';
+      svg += '<text x="150" y="43" text-anchor="middle" font-size="8" fill="' + accent + '">Athlete Profile</text>';
+      svg += '<line x1="150" y1="53" x2="80" y2="80" stroke="' + muted + '" stroke-width="1.5"/>';
+      svg += '<line x1="150" y1="53" x2="220" y2="80" stroke="' + muted + '" stroke-width="1.5"/>';
+      svg += '<rect x="40" y="80" width="80" height="24" rx="5" fill="#e0e7ff" stroke="' + muted + '" stroke-width="1"/>';
+      svg += '<text x="80" y="95" text-anchor="middle" font-size="7" fill="' + muted + '">Weak squat lockout</text>';
+      svg += '<rect x="180" y="80" width="80" height="24" rx="5" fill="#e0e7ff" stroke="' + muted + '" stroke-width="1"/>';
+      svg += '<text x="220" y="95" text-anchor="middle" font-size="7" fill="' + muted + '">Slow off chest</text>';
+      svg += '<line x1="80" y1="104" x2="50" y2="125" stroke="' + muted + '" stroke-width="1"/>';
+      svg += '<line x1="80" y1="104" x2="110" y2="125" stroke="' + muted + '" stroke-width="1"/>';
+      svg += '<rect x="20" y="125" width="60" height="20" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>';
+      svg += '<text x="50" y="138" text-anchor="middle" font-size="6" fill="#16a34a">Good Mornings</text>';
+      svg += '<rect x="90" y="125" width="60" height="20" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>';
+      svg += '<text x="120" y="138" text-anchor="middle" font-size="6" fill="#16a34a">Pin Squats</text>';
+      svg += '<text x="150" y="170" text-anchor="middle" font-size="7" fill="' + muted + '" font-style="italic">Choose exercises based on weakness</text>';
+
+    } else if (toolId === 'rotation') {
+      // Calendar grid
+      svg += '<text x="150" y="16" text-anchor="middle" font-size="10" fill="' + accent + '" font-weight="600">ME Rotation Planner</text>';
+      var days = ['Wk 1','Wk 2','Wk 3','Wk 4','Wk 5','Wk 6'];
+      var colors = ['#6366f1','#c4322e','#2196f3','#16a34a','#9333ea','#ea580c'];
+      var exercises = ['Floor Press','2-Board','Incline','Log Press','Close Grip','Pin Press'];
+      for (var i = 0; i < 6; i++) {
+        var x = 20, y = 26 + i * 24;
+        svg += '<text x="' + x + '" y="' + (y + 14) + '" font-size="8" fill="' + muted + '">' + days[i] + '</text>';
+        svg += '<rect x="65" y="' + y + '" width="210" height="18" rx="4" fill="' + colors[i] + '" opacity="0.2"/>';
+        var barWidths = [140,120,155,130,145,110];
+        svg += '<rect x="65" y="' + y + '" width="' + barWidths[i] + '" height="18" rx="4" fill="' + colors[i] + '" opacity="0.5"/>';
+        svg += '<text x="70" y="' + (y + 13) + '" font-size="7" fill="white" font-weight="600">' + exercises[i] + '</text>';
+      }
+      svg += '<text x="150" y="175" text-anchor="middle" font-size="7" fill="' + muted + '" font-style="italic">Rotate ME exercises every 1–3 weeks</text>';
+
+    } else if (toolId === 'template') {
+      // Form layout
+      svg += '<text x="150" y="16" text-anchor="middle" font-size="10" fill="' + accent + '" font-weight="600">Template Builder</text>';
+      var labels = ['Training Day:','Main Lift:','ME/DE:','Accessory 1:','Accessory 2:','Accessory 3:'];
+      for (var j = 0; j < 6; j++) {
+        var yy = 28 + j * 23;
+        svg += '<text x="20" y="' + (yy + 12) + '" font-size="7" fill="' + muted + '">' + labels[j] + '</text>';
+        svg += '<rect x="105" y="' + yy + '" width="175" height="16" rx="3" fill="none" stroke="' + muted + '" stroke-width="1" stroke-dasharray="3,2"/>';
+        svg += '<text x="268" y="' + (yy + 12) + '" font-size="8" fill="' + muted + '">▼</text>';
+      }
+      svg += '<text x="150" y="175" text-anchor="middle" font-size="7" fill="' + muted + '" font-style="italic">Drag & drop exercise selection</text>';
+
+    } else if (toolId === 'meetprep') {
+      // Timeline
+      svg += '<text x="150" y="16" text-anchor="middle" font-size="10" fill="' + accent + '" font-weight="600">Meet Prep Timeline</text>';
+      svg += '<line x1="20" y1="60" x2="280" y2="60" stroke="' + muted + '" stroke-width="2"/>';
+      var weeks = ['-12','-10','-8','-6','-4','-2','Meet'];
+      var wColors = ['#6366f1','#6366f1','#2196f3','#2196f3','#ea580c','#c4322e','#16a34a'];
+      var wLabels = ['Volume','Volume','Intensity','Intensity','Peak','Deload','COMPETE'];
+      for (var k = 0; k < 7; k++) {
+        var xp = 20 + k * 43.3;
+        svg += '<circle cx="' + xp + '" cy="60" r="6" fill="' + wColors[k] + '"/>';
+        svg += '<text x="' + xp + '" y="50" text-anchor="middle" font-size="7" fill="' + muted + '">' + weeks[k] + '</text>';
+        svg += '<text x="' + xp + '" y="78" text-anchor="middle" font-size="6" fill="' + wColors[k] + '">' + wLabels[k] + '</text>';
+      }
+      // Intensity curve
+      svg += '<path d="M20,140 Q80,135 110,125 T180,105 T240,95 T270,130 L280,90" fill="none" stroke="' + accent + '" stroke-width="1.5" opacity="0.5"/>';
+      svg += '<text x="150" y="110" text-anchor="middle" font-size="7" fill="' + accent + '">Intensity curve</text>';
+      svg += '<text x="150" y="175" text-anchor="middle" font-size="7" fill="' + muted + '" font-style="italic">Week-by-week meet preparation plan</text>';
+
+    } else if (toolId === 'percentcalc') {
+      // Table grid
+      svg += '<text x="150" y="16" text-anchor="middle" font-size="10" fill="' + accent + '" font-weight="600">Percentage Calculator</text>';
+      svg += '<rect x="20" y="25" width="260" height="20" rx="0" fill="' + accent + '" opacity="0.15"/>';
+      var headers = ['%','Weight','Sets','Reps','Total'];
+      for (var h = 0; h < 5; h++) {
+        svg += '<text x="' + (40 + h * 52) + '" y="38" text-anchor="middle" font-size="8" fill="' + accent + '" font-weight="600">' + headers[h] + '</text>';
+      }
+      var pcts = ['55%','60%','65%','70%','75%','80%'];
+      var weights = ['220','240','260','280','300','320'];
+      var sets = ['5','4','4','3','3','2'];
+      var reps = ['5','5','3','3','2','1'];
+      for (var r = 0; r < 6; r++) {
+        var yr = 50 + r * 18;
+        if (r % 2 === 0) svg += '<rect x="20" y="' + yr + '" width="260" height="18" fill="' + muted + '" opacity="0.05"/>';
+        var vals = [pcts[r], weights[r], sets[r], reps[r], String(parseInt(sets[r]) * parseInt(reps[r]))];
+        for (var c = 0; c < 5; c++) {
+          svg += '<text x="' + (40 + c * 52) + '" y="' + (yr + 13) + '" text-anchor="middle" font-size="7" fill="' + muted + '">' + vals[c] + '</text>';
+        }
+      }
+      svg += '<text x="150" y="175" text-anchor="middle" font-size="7" fill="' + muted + '" font-style="italic">Based on Prilepin\'s Chart guidelines</text>';
+    }
+
+    svg += '</svg>';
+    return svg;
+  },
+
+  saveRank: function(toolId, rank) {
+    var data = this.getLabData();
+    data.ranks[toolId] = rank;
+    this.saveLabData(data);
+    this.logAudit('set_rank', toolId, rank);
+
+    // Update star buttons in-place
+    var card = document.getElementById('lab-card-' + toolId);
+    if (card) {
+      var btns = card.querySelectorAll('.lab-rank-btn');
+      btns.forEach(function(btn, idx) {
+        var filled = idx + 1 <= rank;
+        btn.classList.toggle('active', filled);
+        btn.textContent = filled ? '★' : '☆';
+      });
+    }
+    var stars = '';
+    for (var s = 0; s < rank; s++) stars += '★';
+    showToast(stars + ' ' + this.getToolName(toolId));
+  },
+
+  submitToolFeedback: function(toolId) {
+    var textarea = document.getElementById('lab-comment-' + toolId);
+    if (!textarea) return;
+    var text = textarea.value.trim();
+    if (!text) { showToast('Please write some feedback first'); return; }
+
+    var data = this.getLabData();
+    if (!data.feedback[toolId]) data.feedback[toolId] = [];
+    data.feedback[toolId].push({ text: text, date: Date.now() });
+    this.saveLabData(data);
+    this.logAudit('submit_feedback', toolId);
+
+    // Re-render history
+    var histDiv = document.getElementById('lab-history-' + toolId);
+    if (histDiv) histDiv.innerHTML = this.renderCommentHistory(data.feedback[toolId]);
+
+    textarea.value = '';
+    showToast('Feedback submitted — thank you!');
+  },
+
+  submitIdea: function() {
+    var textarea = document.getElementById('lab-idea-text');
+    if (!textarea) return;
+    var text = textarea.value.trim();
+    if (!text) { showToast('Please describe your idea first'); return; }
+
+    var data = this.getLabData();
+    if (!data.ideas) data.ideas = [];
+    data.ideas.push({ text: text, date: Date.now() });
+    this.saveLabData(data);
+    this.logAudit('submit_idea');
+
+    textarea.value = '';
+    showToast('Idea submitted — thank you!');
+    // Re-render ideas list
+    var box = textarea.closest('.lab-idea-box');
+    if (box) {
+      var existing = box.querySelector('.lab-ideas-list');
+      if (existing) existing.remove();
+      box.insertAdjacentHTML('beforeend', this.renderIdeasList(data));
+    }
+  },
+
+  leaveLab: function() {
+    if (this._enterTime) {
+      var duration = Math.round((Date.now() - this._enterTime) / 1000);
+      this.logAudit('time_in_lab', null, duration);
+    }
+    backToMenu();
+  },
+
+  getToolName: function(toolId) {
+    for (var i = 0; i < this.tools.length; i++) {
+      if (this.tools[i].id === toolId) return this.tools[i].name;
+    }
+    return toolId;
+  },
+
+  getAuditSummary: function() {
+    var log = this.getAuditLog();
+    if (!log.length) return '';
+
+    var visits = 0, toolViews = {}, feedbackCount = 0, totalTime = 0, lastVisit = 0;
+    log.forEach(function(e) {
+      if (e.action === 'open_lab') { visits++; if (e.timestamp > lastVisit) lastVisit = e.timestamp; }
+      if (e.action === 'view_tool' && e.toolId) toolViews[e.toolId] = (toolViews[e.toolId] || 0) + 1;
+      if (e.action === 'submit_feedback' || e.action === 'submit_idea') feedbackCount++;
+      if (e.action === 'time_in_lab' && e.extra) totalTime += e.extra;
+    });
+
+    var mostViewed = '';
+    var maxViews = 0;
+    for (var tid in toolViews) {
+      if (toolViews[tid] > maxViews) { maxViews = toolViews[tid]; mostViewed = tid; }
+    }
+
+    var html = '<div class="lab-audit-summary">';
+    html += '<strong>📊 Lab Activity</strong><br>';
+    html += 'Visits: <strong>' + visits + '</strong>';
+    if (mostViewed) html += ' &bull; Most viewed: <strong>' + this.getToolName(mostViewed) + '</strong> (' + maxViews + 'x)';
+    if (feedbackCount) html += ' &bull; Feedback: <strong>' + feedbackCount + '</strong>';
+    if (totalTime > 60) html += ' &bull; Time: <strong>' + Math.round(totalTime / 60) + ' min</strong>';
+    if (lastVisit) html += '<br>Last visit: ' + new Date(lastVisit).toLocaleDateString();
+    html += '<br><button class="lab-export-btn" onclick="LAB.exportLabData()">📋 Copy All Feedback Data</button>';
+    html += '</div>';
+    return html;
+  },
+
+  exportLabData: function() {
+    var data = this.getLabData();
+    var audit = this.getAuditLog();
+    var exportObj = { labData: data, auditLog: audit, exportDate: new Date().toISOString() };
+    var text = JSON.stringify(exportObj, null, 2);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        showToast('Lab data copied to clipboard!');
+      }).catch(function() {
+        LAB._fallbackCopy(text);
+      });
+    } else {
+      this._fallbackCopy(text);
+    }
+  },
+
+  _fallbackCopy: function(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Lab data copied to clipboard!');
+  }
+};
+
+// =======================================
+// SYNC (cross-device via shareable link)
+// =======================================
+var SYNC = {
+  _userKey: 'conjugate_sync_user',
+
+  getUser: function() {
+    try {
+      var raw = localStorage.getItem(this._userKey);
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return null;
+  },
+
+  setUser: function(name) {
+    var user = { name: name, created: Date.now() };
+    try { localStorage.setItem(this._userKey, JSON.stringify(user)); } catch(e) {}
+    this.updateUserBar();
+    return user;
+  },
+
+  clearUser: function() {
+    localStorage.removeItem(this._userKey);
+    this.updateUserBar();
+  },
+
+  updateUserBar: function() {
+    var bar = document.getElementById('syncUserBar');
+    if (!bar) return;
+    var user = this.getUser();
+    if (user) {
+      bar.style.display = 'flex';
+      bar.innerHTML = '👤 <span>' + esc(user.name) + '</span>';
+    } else {
+      bar.style.display = 'none';
+    }
+  },
+
+  // Collect ALL app data into one object
+  getAllData: function() {
+    return {
+      study: Store.get(),
+      lab: LAB.getLabData(),
+      audit: LAB.getAuditLog(),
+      user: this.getUser(),
+      syncVersion: 2,
+      exportDate: Date.now()
+    };
+  },
+
+  // Restore all data from import
+  importAllData: function(data) {
+    if (!data || !data.syncVersion) return false;
+    try {
+      // Study data — ensure _earnedBadges is preserved or seeded so post-sync doesn't spam badge toasts
+      if (data.study) {
+        if (!data.study._earnedBadges) {
+          // Compute current badges from imported data so the next session doesn't re-announce them
+          var earned = [];
+          BADGES.forEach(function(b) { try { if (b.check(data.study)) earned.push(b.id); } catch(_){} });
+          data.study._earnedBadges = earned;
+        }
+        // Ensure schema completeness
+        if (!data.study.studyStreak) data.study.studyStreak = { lastDate: null, current: 0, longest: 0 };
+        if (typeof data.study.studyStreak.longest !== 'number') data.study.studyStreak.longest = data.study.studyStreak.current || 0;
+        localStorage.setItem(Store._key, JSON.stringify(data.study));
+      }
+      // Lab data
+      if (data.lab) {
+        localStorage.setItem(LAB._labKey, JSON.stringify(data.lab));
+      }
+      // Audit log
+      if (data.audit) {
+        localStorage.setItem(LAB._auditKey, JSON.stringify(data.audit));
+      }
+      // User info
+      if (data.user && data.user.name) {
+        this.setUser(data.user.name);
+      }
+      return true;
+    } catch(e) {
+      return false;
+    }
+  },
+
+  // Base64 encode/decode with Unicode support
+  encode: function(obj) {
+    var json = JSON.stringify(obj);
+    var encoded = encodeURIComponent(json);
+    var bytes = encoded.replace(/%([0-9A-F]{2})/g, function(m, p) {
+      return String.fromCharCode(parseInt(p, 16));
+    });
+    return btoa(bytes);
+  },
+
+  decode: function(str) {
+    var bytes = atob(str);
+    var encoded = Array.prototype.map.call(bytes, function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join('');
+    return JSON.parse(decodeURIComponent(encoded));
+  },
+
+  // Generate a sync link
+  generateSyncLink: function() {
+    var data = this.getAllData();
+    var b64 = this.encode(data);
+    var base = window.location.origin + window.location.pathname;
+    return base + '#sync=' + b64;
+  },
+
+  // Generate a sync code (just the base64 data, for paste)
+  generateSyncCode: function() {
+    return this.encode(this.getAllData());
+  },
+
+  // Check URL hash for incoming sync on page load
+  checkIncomingSync: function() {
+    var hash = window.location.hash;
+    if (hash.indexOf('#sync=') !== 0) return false;
+    var b64 = hash.substring(6);
+    try {
+      var data = this.decode(b64);
+      // Clear the hash so it doesn't re-import on refresh
+      history.replaceState(null, '', window.location.pathname);
+      // Show confirmation
+      this.showImportConfirm(data);
+      return true;
+    } catch(e) {
+      showToast('Invalid sync link');
+      history.replaceState(null, '', window.location.pathname);
+      return false;
+    }
+  },
+
+  showImportConfirm: function(data) {
+    var self = this;
+    var userName = data.user ? data.user.name : 'Unknown';
+    var exportDate = data.exportDate ? new Date(data.exportDate).toLocaleDateString() : 'Unknown';
+    var sessions = data.study ? (data.study.totalSessions || 0) : 0;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'sync-overlay';
+    overlay.innerHTML =
+      '<div class="sync-modal">' +
+        '<h2>📥 Incoming Sync</h2>' +
+        '<p>Import study data from <strong>' + esc(userName) + '</strong>?</p>' +
+        '<div style="background:var(--neutral-bg);padding:0.75rem;border-radius:8px;font-size:0.85rem;margin-bottom:1rem">' +
+          '📊 <strong>' + sessions + '</strong> sessions &bull; ' +
+          '📅 Exported ' + esc(exportDate) +
+        '</div>' +
+        '<p style="color:var(--incorrect);font-size:0.8rem">⚠️ This will replace your current data on this device.</p>' +
+        '<button class="sync-btn sync-btn-primary" id="syncConfirmYes">Import Data</button>' +
+        '<button class="sync-btn sync-btn-secondary" id="syncConfirmNo">Cancel</button>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('syncConfirmYes').addEventListener('click', function() {
+      var ok = self.importAllData(data);
+      document.body.removeChild(overlay);
+      if (ok) {
+        showToast('Data imported successfully!');
+        updateStatsBar();
+        self.updateUserBar();
+      } else {
+        showToast('Import failed — invalid data');
+      }
+    });
+
+    document.getElementById('syncConfirmNo').addEventListener('click', function() {
+      document.body.removeChild(overlay);
+    });
+  },
+
+  // Show the sync modal
+  showModal: function() {
+    var self = this;
+    var user = this.getUser();
+    var overlay = document.createElement('div');
+    overlay.className = 'sync-overlay';
+    overlay.id = 'sync-overlay';
+
+    var html = '<div class="sync-modal">';
+    html += '<button class="sync-close" aria-label="Close" onclick="SYNC.closeModal()">&times;</button>';
+    html += '<h2>🔄 Sync Across Devices</h2>';
+    html += '<p>Set your name, then share a sync link to transfer all your study progress to another device.</p>';
+
+    // Name field
+    html += '<div class="sync-field">';
+    html += '<label>Your Name</label>';
+    html += '<input type="text" id="syncNameInput" placeholder="e.g. Anna" value="' + (user ? esc(user.name) : '') + '">';
+    html += '</div>';
+
+    if (!user) {
+      html += '<button class="sync-btn sync-btn-primary" onclick="SYNC.saveName()">Save Name</button>';
+    } else {
+      // Export section
+      html += '<button class="sync-btn sync-btn-primary" onclick="SYNC.copyLink()">📤 Copy Sync Link</button>';
+      html += '<p style="font-size:0.8rem;text-align:center;margin-top:0.25rem;margin-bottom:0.5rem">Share this link via text, AirDrop, or Notes — open it on your other device to sync.</p>';
+
+      html += '<div class="sync-divider">or</div>';
+
+      // Import section
+      html += '<button class="sync-btn sync-btn-secondary" onclick="SYNC.toggleImportArea()">📥 Import from Sync Code</button>';
+      html += '<div class="sync-import-area" id="syncImportArea" style="display:none">';
+      html += '<textarea id="syncImportText" placeholder="Paste sync code here..."></textarea>';
+      html += '<button class="sync-btn sync-btn-primary" style="margin-top:0.5rem" onclick="SYNC.importFromCode()">Import</button>';
+      html += '</div>';
+
+      html += '<div class="sync-divider">account</div>';
+
+      // Copy raw code
+      html += '<button class="sync-btn sync-btn-secondary" onclick="SYNC.copyCode()">📋 Copy Raw Sync Code</button>';
+      html += '<button class="sync-btn sync-btn-secondary" style="margin-top:0.25rem;color:var(--incorrect)" onclick="SYNC.saveName()">Update Name</button>';
+    }
+
+    // Status area
+    html += '<div id="syncStatus"></div>';
+    html += '</div>';
+
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay);
+
+    // Close on overlay click (outside modal)
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) self.closeModal();
+    });
+  },
+
+  closeModal: function() {
+    var overlay = document.getElementById('sync-overlay');
+    if (overlay) document.body.removeChild(overlay);
+  },
+
+  saveName: function() {
+    var input = document.getElementById('syncNameInput');
+    if (!input) return;
+    var name = input.value.trim();
+    if (!name) {
+      this.showStatus('Please enter your name', 'error');
+      return;
+    }
+    this.setUser(name);
+    this.closeModal();
+    this.showModal(); // Re-open with full UI
+    showToast('Welcome, ' + name + '!');
+  },
+
+  copyLink: function() {
+    var self = this;
+    var link = this.generateSyncLink();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(function() {
+        self.showStatus('Sync link copied! Share it to your other device.', 'success');
+      }).catch(function() {
+        self._fallbackCopy(link);
+        self.showStatus('Sync link copied!', 'success');
+      });
+    } else {
+      this._fallbackCopy(link);
+      this.showStatus('Sync link copied!', 'success');
+    }
+  },
+
+  copyCode: function() {
+    var self = this;
+    var code = this.generateSyncCode();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(function() {
+        self.showStatus('Sync code copied!', 'success');
+      }).catch(function() {
+        self._fallbackCopy(code);
+        self.showStatus('Sync code copied!', 'success');
+      });
+    } else {
+      this._fallbackCopy(code);
+      this.showStatus('Sync code copied!', 'success');
+    }
+  },
+
+  _fallbackCopy: function(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  },
+
+  toggleImportArea: function() {
+    var area = document.getElementById('syncImportArea');
+    if (area) area.style.display = area.style.display === 'none' ? 'block' : 'none';
+  },
+
+  importFromCode: function() {
+    var textarea = document.getElementById('syncImportText');
+    if (!textarea) return;
+    var code = textarea.value.trim();
+    if (!code) {
+      this.showStatus('Please paste a sync code first', 'error');
+      return;
+    }
+    try {
+      var data = this.decode(code);
+      this.closeModal();
+      this.showImportConfirm(data);
+    } catch(e) {
+      this.showStatus('Invalid sync code — check that you pasted the whole thing', 'error');
+    }
+  },
+
+  showStatus: function(msg, type) {
+    var el = document.getElementById('syncStatus');
+    if (!el) return;
+    el.className = 'sync-status ' + type;
+    el.textContent = msg;
+  }
+};
+
+// =======================================
 // INIT
 // =======================================
 function initApp() {
@@ -2681,13 +3785,23 @@ function initApp() {
   document.getElementById('review-mode-btn').addEventListener('click', function() { RV.start(); });
   document.getElementById('dash-mode-btn').addEventListener('click', function() { DASH.start(); });
   document.getElementById('survey-mode-btn').addEventListener('click', function() { SV.start(); });
+  document.getElementById('lab-mode-btn').addEventListener('click', function() { LAB.start(); });
+
+  // Sync button
+  document.getElementById('syncBtn').addEventListener('click', function() { SYNC.showModal(); });
+  SYNC.updateUserBar();
+
+  // Check for incoming sync link
+  SYNC.checkIncomingSync();
 
   // Update stats
   updateStatsBar();
 
   // Register service worker
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(function() {});
+    navigator.serviceWorker.register('./sw.js').catch(function(err) {
+      if (window.console) console.warn('Service worker registration failed:', err);
+    });
   }
 }
 
