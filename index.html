@@ -20,8 +20,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-<!-- Google Identity Services (for WIP Lab auth) — uncomment when GOOGLE_CLIENT_ID is set -->
-<!-- <script src="https://accounts.google.com/gsi/client" async defer></script> -->
+<!-- Google Identity Services (for WIP Lab auth) -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <style>
 /* =================== THEME VARIABLES =================== */
@@ -857,6 +857,35 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 <div id="lab-panel" class="mode-panel"></div>
 
 <script>
+/**
+ * Conjugate Method Study Hub — Application Script
+ *
+ * MODULE MAP:
+ *   Store        - Central localStorage state manager (conjugate_study_data)
+ *   FC           - Flashcard flip-card study mode
+ *   QZ           - Custom quiz builder with multi-filter selection
+ *   FT           - Full 105-question practice test
+ *   RV           - Review mode for missed questions
+ *   DASH         - Performance analytics dashboard
+ *   SV           - User feedback/survey (conjugate_feedback_log)
+ *   LAB          - Advanced WIP tool suite (conjugate_lab_data, conjugate_lab_audit)
+ *   SYNC         - Cross-device sync via base64 codes (conjugate_sync_user)
+ *   initApp()    - Bootstrap: event wiring, service worker, stats init
+ *
+ * DATA FLOW:
+ *   QUESTIONS → FC, QZ, FT, RV (read-only)
+ *   FC/QZ/FT/RV → Store (write: miss/correct/session)
+ *   Store → DASH (read: all stats)
+ *   Store + LAB → SYNC (export together)
+ *   SYNC → Store (import: destructive replace)
+ *
+ * KNOWN ISSUES (see individual JSDoc for details):
+ *   - SV feedback not included in SYNC export
+ *   - LAB tools are wireframe SVGs only (no interactive calculators yet)
+ *   - _earnedBadges not in Store._default() schema
+ *   - SYNC import is fully destructive (no merge)
+ */
+
 // =======================================
 // DATA
 // =======================================
@@ -1007,6 +1036,22 @@ function sectionTagStyle(sectionNum) {
 // =======================================
 // BADGES
 // =======================================
+/**
+ * @description Array of 12 achievement definitions. Each badge has a check function
+ *   that evaluates current Store data to determine if the badge has been earned.
+ * @type {Array<{id: string, name: string, icon: string, desc: string, check: function}>}
+ * @property {string} id - Unique badge identifier (e.g. 'first_rep', 'streak_7')
+ * @property {string} name - Human-readable badge name displayed in toasts and DASH
+ * @property {string} icon - HTML entity string for the badge emoji
+ * @property {string} desc - Short description of earn condition shown in DASH
+ * @property {function} check - function(data) → boolean; receives Store.get() data object
+ *
+ * Badge IDs: first_rep, warming_up, dedicated, pr_day, passing,
+ *            streak_3, streak_7, streak_30, clean_slate, night_owl,
+ *            early_bird, speed_demon
+ *
+ * @interactions Read by getEarnedBadges(), checkNewBadges(), DASH.badgesHTML()
+ */
 var BADGES = [
   {id:'first_rep', name:'First Rep', icon:'&#x1F3CB;&#xFE0F;', desc:'Complete your first study session', check: function(d){ return d.totalSessions >= 1; }},
   {id:'warming_up', name:'Warming Up', icon:'&#x1F525;', desc:'Complete 5 study sessions', check: function(d){ return d.totalSessions >= 5; }},
@@ -1022,6 +1067,15 @@ var BADGES = [
   {id:'speed_demon', name:'Speed Demon', icon:'&#x1F3CE;&#xFE0F;', desc:'Finish a 10-question quiz in under 60 seconds', check: function(d){ return d.quizHistory.some(function(h){ return h.mode === 'quiz' && h.total === 10 && h.timeSeconds > 0 && h.timeSeconds < 60; }); }}
 ];
 
+/**
+ * @description Evaluates all badge check functions against current Store data
+ *   and returns the IDs of every badge whose condition is satisfied.
+ *   Individual check failures are silently swallowed so a single bad check
+ *   cannot break the entire badge system.
+ * @function
+ * @returns {string[]} Array of earned badge IDs (subset of BADGES[*].id)
+ * @interactions Reads Store.get(); called by checkNewBadges() and DASH.badgesHTML()
+ */
 function getEarnedBadges() {
   var data = Store.get();
   var earned = [];
@@ -1031,6 +1085,17 @@ function getEarnedBadges() {
   return earned;
 }
 
+/**
+ * @description Detects newly earned badges by diffing the current earned set against
+ *   the previously saved set, then shows a toast notification for the first new badge.
+ *   Persists the updated earned set back into Store data under _earnedBadges.
+ * @function
+ * @sideeffects Updates Store data._earnedBadges; may call showToast()
+ * @interactions Reads Store.get() / Store.save(); calls getEarnedBadges(), showToast()
+ * @limitations _earnedBadges is NOT declared in Store._default() schema — it will be
+ *   undefined on first run and defaults to []. Also only surfaces the FIRST new badge
+ *   per session call; subsequent new badges in the same call are silently ignored.
+ */
 function checkNewBadges() {
   var data = Store.get();
   var prev = data._earnedBadges || [];
@@ -1060,6 +1125,19 @@ function showToast(msg) {
 // =======================================
 // CONFETTI
 // =======================================
+/**
+ * @description Renders an animated confetti burst on the #confetti-canvas element.
+ *   Spawns 80 colored particles that fall with gravity and drift, running for ~3 seconds
+ *   via requestAnimationFrame. Canvas is sized to fill the full viewport on each call.
+ * @function
+ * @param none
+ * @sideeffects Reads/writes #confetti-canvas dimensions and 2D context; drives animation
+ *   loop via requestAnimationFrame for approximately 3000ms
+ * @interactions Called by QZ.resultsHTML() render path when score >= 80%;
+ *   called directly on 100% quiz score
+ * @limitations Canvas element must exist in the DOM (#confetti-canvas); silently returns
+ *   if element is missing
+ */
 function fireConfetti() {
   var canvas = document.getElementById('confetti-canvas');
   if (!canvas) return;
@@ -1111,6 +1189,18 @@ function fireConfetti() {
 // =======================================
 // SCORE COUNT-UP ANIMATION
 // =======================================
+/**
+ * @description Animates a numeric score display counting up from 0% to target% using
+ *   a cubic ease-out curve for a satisfying deceleration effect. A setTimeout fallback
+ *   ensures the final value is set even if requestAnimationFrame is paused (e.g. in a
+ *   backgrounded tab).
+ * @function
+ * @param {string} elementId - ID of the DOM element whose textContent will be animated
+ * @param {number} target - The final percentage value to count up to (e.g. 85 for "85%")
+ * @param {number} [durationMs=1200] - Animation duration in milliseconds; defaults to 1200
+ * @sideeffects Updates element.textContent on each animation frame with "N%" strings
+ * @interactions Called by QZ.resultsHTML() and RV.resultsHTML() after a session completes
+ */
 function animateCount(elementId, target, durationMs) {
   var el = document.getElementById(elementId);
   if (!el) return;
@@ -1172,6 +1262,33 @@ function updateWeakestSection() {
 // =======================================
 // LOCAL STORAGE (progress tracking)
 // =======================================
+/**
+ * @description Central localStorage state manager. Owns all persistent user data for
+ *   the app. All reads go through load() (which merges with defaults for forward
+ *   compatibility), and all writes go through save().
+ * @namespace Store
+ * @property {string} _key - localStorage key: 'conjugate_study_data'
+ *
+ * @property {function} _default - Returns a fresh default data object with schema:
+ *   { darkMode: boolean, missedQuestions: {[id]: number}, flaggedQuestions: {[id]: ISOString},
+ *     quizHistory: Array<{date, score, total, mode, section, timeSeconds}>,
+ *     studyStreak: {lastDate, current, longest}, totalSessions: number }
+ * @property {function} load - Reads and merges localStorage data with defaults
+ * @property {function} save - Serializes data object to localStorage
+ * @property {function} get - Alias for load(); preferred read accessor
+ * @property {function} recordMiss - Increments missedQuestions count for a question ID
+ * @property {function} recordCorrect - Decrements (floors at 0, then deletes) missedQuestions entry
+ * @property {function} recordSession - Appends to quizHistory, increments totalSessions,
+ *   updates studyStreak using local date (not UTC), then calls updateStatsBar/checkNewBadges
+ * @property {function} getMissedIds - Returns number[] of question IDs with miss count > 0
+ * @property {function} toggleFlag - Toggles flagged state for a question; returns new boolean state
+ * @property {function} isFlagged - Returns boolean flagged state for a question ID
+ * @property {function} getFlaggedCount - Returns total count of currently flagged questions
+ *
+ * @interactions Written by FC, QZ, FT, RV; read by DASH, SYNC, updateStatsBar, checkNewBadges
+ * @limitations _earnedBadges is NOT included in _default() schema (added dynamically by
+ *   checkNewBadges). quizHistory is trimmed to the last 50 entries on each recordSession call.
+ */
 var Store = {
   _key: 'conjugate_study_data',
 
@@ -1287,6 +1404,17 @@ var Store = {
 // =======================================
 // STATS BAR
 // =======================================
+/**
+ * @description Refreshes the header stats display with the latest data from Store.
+ *   Recalculates average score across all quiz history entries, shows or hides the
+ *   Review Missed card based on whether any missed IDs exist, and delegates to
+ *   updateWeakestSection() to show or hide the weak-section drill card.
+ * @function
+ * @sideeffects Updates textContent of #streakDisplay, #sessionsDisplay, #avgScoreDisplay;
+ *   sets display style of #review-mode-btn and #missedCount; calls updateWeakestSection()
+ * @interactions Reads Store.get() and Store.getMissedIds(); calls updateWeakestSection();
+ *   called by Store.recordSession(), backToMenu(), showMode(null), and initApp()
+ */
 function updateStatsBar() {
   var data = Store.get();
   document.getElementById('streakDisplay').textContent = data.studyStreak.current || 0;
@@ -1430,6 +1558,29 @@ function flagBtnHTML(qid) {
 // =======================================
 // FLASHCARD MODE
 // =======================================
+/**
+ * @description Flashcard flip-card study mode. Presents questions one at a time with a
+ *   front (question + options) and back (answer + explanation). User self-marks each card
+ *   as known or needing review, which writes to Store. Session ends with a results screen.
+ * @namespace FC
+ * @property {Array} deck - Shuffled array of question objects for the current session
+ * @property {number} idx - Index of the currently displayed card in deck
+ * @property {number} known - Running count of cards marked "Got It Right" this session
+ * @property {number} review - Running count of cards marked "Got It Wrong" this session
+ *
+ * @property {function} start - Builds deck from QUESTIONS (excludes scenario type),
+ *   optionally filtering by sectionFilter string; calls showMode('flashcard') and render()
+ * @property {function} render - Renders current card HTML into #flashcard-panel,
+ *   or calls resultsHTML() and records session if deck is exhausted
+ * @property {function} flip - Toggles the 'flipped' CSS class on #fcCard
+ * @property {function} mark - Records known/review, calls Store.recordCorrect/recordMiss,
+ *   advances idx, re-renders; guards against rapid double-tap past end of deck
+ * @property {function} resultsHTML - Returns HTML string for the session summary screen
+ *
+ * @interactions Reads QUESTIONS (filtered), SECTIONS; writes Store via recordMiss,
+ *   recordCorrect, recordSession
+ * @sideeffects DOM root: #flashcard-panel
+ */
 var FC = {
   deck: [],
   idx: 0,
@@ -1550,6 +1701,45 @@ var FC = {
 // =======================================
 // QUICK QUIZ MODE
 // =======================================
+/**
+ * @description Customizable quiz builder with multi-filter question selection. Presents
+ *   a setup screen where the user picks sections (chips), focus type (all/missed/flagged),
+ *   and question count, then runs a timed multiple-choice quiz with instant feedback.
+ * @namespace QZ
+ * @property {Array} questions - Filtered question pool for the active quiz
+ * @property {number} current - Index of the current question being displayed
+ * @property {number} score - Running count of correct answers
+ * @property {number} answered - Total questions answered so far
+ * @property {?number} timer - setInterval handle for the countdown timer (null when idle)
+ * @property {number} seconds - Elapsed seconds for the current quiz session
+ * @property {?number} _section - Section ID when launched via beginWeak(); null otherwise
+ *
+ * @property {function} setup - Renders the quiz builder UI into #quiz-panel with section
+ *   chips, focus selector, count slider, and pool info
+ * @property {function} toggleSection - Toggles a section chip's active state and updates pool info
+ * @property {function} selectFocus - Activates a focus button (all/missed/flagged) and updates pool info
+ * @property {function} updateCount - Updates the question count from the range slider
+ * @property {function} getSelectedSections - Returns array of selected section IDs (or null for all)
+ * @property {function} getSelectedFocus - Returns active focus string ('all'|'missed'|'flagged')
+ * @property {function} getFilteredPool - Builds the filtered question pool from current UI state
+ * @property {function} updatePoolInfo - Refreshes the "N questions available" helper text
+ * @property {function} begin - Starts the quiz with current filter settings
+ * @property {function} startTimer - Initializes and starts the elapsed-time interval
+ * @property {function} renderQuestion - Renders the current question into #quiz-panel
+ * @property {function} answer - Handles answer button click; records miss/correct, shows feedback
+ * @property {function} next - Advances to next question or shows results
+ * @property {function} quit - Abandons quiz mid-session and returns to menu
+ * @property {function} beginWeak - Entry point called by updateWeakestSection() to drill
+ *   the weakest section directly; sets _section and calls begin()
+ * @property {function} resultsHTML - Returns HTML string for the quiz results screen;
+ *   fires confetti on score >= 80%
+ *
+ * @interactions Reads QUESTIONS, SECTIONS, SECTION_COLORS; reads Store (missed/flagged IDs);
+ *   writes Store via recordMiss, recordCorrect, recordSession
+ * @sideeffects DOM root: #quiz-panel
+ * @limitations Timer interval is not cleared if the user navigates away without using the
+ *   Back button; mitigated by backToMenu() which clears QZ.timer explicitly
+ */
 var QZ = {
   questions: [],
   current: 0,
@@ -1915,6 +2105,31 @@ var QZ = {
 // =======================================
 // FULL TEST MODE (105 questions, graded)
 // =======================================
+/**
+ * @description Full 105-question practice test organized by section. All questions are
+ *   rendered at once as cards so the user can work through them at their own pace, then
+ *   submit for grading. Scenario questions are shown with a textarea and auto-marked as
+ *   "skipped" — they are not auto-graded.
+ * @namespace FT
+ * @property {Array} questions - Shuffled copy of all QUESTIONS for the current test attempt
+ * @property {boolean} _scoring - Guard flag set to true during score() to prevent double-submit
+ *
+ * @property {function} start - Resets state, shuffles all QUESTIONS, calls showMode('test')
+ *   and render()
+ * @property {function} render - Builds the full test HTML (all question cards) into #test-panel
+ * @property {function} renderCard - Returns HTML string for a single question card given
+ *   the question object and its 1-based display number
+ * @property {function} gradeCard - Evaluates a single rendered card DOM element against the
+ *   correct answer; returns {correct: boolean, skipped: boolean}
+ * @property {function} score - Iterates all cards, grades each, tallies score, calls
+ *   Store.recordSession(), then calls showAnswers()
+ * @property {function} showAnswers - Reveals correct/incorrect state on all cards after grading
+ * @property {function} reset - Clears grading state and re-renders a fresh test
+ * @property {function} clearGrading - Removes all grading CSS classes from rendered cards
+ *
+ * @interactions Reads QUESTIONS, SECTIONS; writes Store via recordSession
+ * @sideeffects DOM root: #test-panel
+ */
 var FT = {
   questions: [],
 
@@ -2207,6 +2422,31 @@ var FT = {
 // =======================================
 // REVIEW MISSED MODE
 // =======================================
+/**
+ * @description Review mode for previously missed questions only. Builds a pool from
+ *   Store.getMissedIds(), excludes scenario questions (not auto-gradeable), then runs
+ *   a standard multiple-choice quiz loop identical in structure to QZ but without the
+ *   setup screen or timer.
+ * @namespace RV
+ * @property {Array} questions - Pool of missed questions for the current review session
+ * @property {number} current - Index of the current question being displayed
+ * @property {number} score - Running count of correct answers this session
+ * @property {number} answered - Total questions answered so far
+ *
+ * @property {function} start - Fetches missed IDs from Store, maps to QUESTIONS objects,
+ *   filters out scenarios and orphaned IDs, shuffles, calls showMode('review')
+ * @property {function} renderQuestion - Renders the current question into #review-panel
+ * @property {function} answer - Handles answer selection; records miss/correct in Store,
+ *   shows feedback overlay
+ * @property {function} next - Advances to next question or calls resultsHTML()
+ * @property {function} resultsHTML - Returns HTML string for review session summary screen
+ *
+ * @interactions Reads Store.getMissedIds(); reads QUESTIONS (filtered); writes Store via
+ *   recordMiss, recordCorrect, recordSession
+ * @sideeffects DOM root: #review-panel
+ * @limitations Orphaned question IDs (IDs that no longer exist in QUESTIONS) are silently
+ *   skipped. Scenario questions are excluded — missed scenarios never appear in review.
+ */
 var RV = {
   questions: [],
   current: 0,
@@ -2341,6 +2581,35 @@ var RV = {
 // =======================================
 // PERFORMANCE DASHBOARD
 // =======================================
+/**
+ * @description Performance analytics dashboard. Reads all Store data and renders a
+ *   comprehensive stats view including progress rings, trend charts, section breakdown,
+ *   activity heatmap, recent sessions table, earned badges, and static educational diagrams.
+ * @namespace DASH
+ *
+ * @property {function} start - Entry point; calls showMode('dash') and renders full
+ *   dashboard HTML into #dash-panel using all sub-render methods
+ * @property {function} progressRingSVG - Returns an SVG string for a circular progress
+ *   ring; params: pct (0-100), size (px)
+ * @property {function} trendChartSVG - Returns an SVG string of a line chart showing
+ *   score trend over recent quiz history entries
+ * @property {function} sectionBreakdownHTML - Returns HTML string of per-section accuracy
+ *   bars derived from quiz history
+ * @property {function} heatmapSVG - Returns an SVG string showing a GitHub-style activity
+ *   heatmap of study days over the last 12 weeks
+ * @property {function} recentSessionsHTML - Returns HTML string of a table listing the
+ *   last N quiz/test/flashcard sessions with date, mode, and score
+ * @property {function} badgesHTML - Returns HTML string of all badge cards, highlighting
+ *   earned ones; calls getEarnedBadges()
+ * @property {function} diagramsHTML - Returns HTML string embedding the three static
+ *   educational SVG diagrams (week template, Prilepin's table, force-velocity curve)
+ *
+ * @interactions Reads Store.get() for all stats; calls Store.getFlaggedCount() for flagged
+ *   question count; calls getEarnedBadges() for badge display
+ * @sideeffects DOM root: #dash-panel
+ * @limitations All diagrams (weekTemplateSVG, prilepinSVG, forceVelocitySVG) are static
+ *   educational SVGs — they are not data-driven and do not reflect user performance
+ */
 var DASH = {
   start: function() {
     showMode('dash');
@@ -2810,6 +3079,27 @@ var DASH = {
 // =======================================
 // SURVEY / FEEDBACK
 // =======================================
+/**
+ * @description User feedback and survey collection module. Renders a feedback form,
+ *   persists submissions to a separate localStorage key, displays submission history,
+ *   and generates a pre-filled GitHub issue URL for easy bug reporting.
+ * @namespace SV
+ * @property {string} feedbackKey - localStorage key: 'conjugate_feedback_log'
+ *
+ * @property {function} start - Calls showMode('survey') and renders the feedback form
+ *   and history into #survey-panel
+ * @property {function} submit - Reads form values, appends a new entry to the feedback
+ *   log in localStorage, shows a confirmation toast, and re-renders
+ * @property {function} renderHistory - Reads and parses the feedback log, returns HTML
+ *   string listing past submissions with timestamps and GitHub issue links
+ *
+ * @interactions Storage is 'conjugate_feedback_log' — entirely separate from the main
+ *   Store ('conjugate_study_data'). Feedback is NOT included in SYNC export/import.
+ * @sideeffects DOM root: #survey-panel
+ * @limitations Feedback log grows unbounded — no trim is applied on submit.
+ * @known_bug JSON.parse in renderHistory is not wrapped in try/catch; a corrupted
+ *   feedback log entry will throw and crash the renderHistory call
+ */
 var SV = {
   feedbackKey: 'conjugate_feedback_log',
 
@@ -2933,6 +3223,39 @@ var SV = {
 // =======================================
 // WIP LAB
 // =======================================
+/**
+ * @description Advanced WIP tool suite with audit logging. Presents five tool cards
+ *   (scenario, rotation, template, meetprep, percentcalc) that currently render wireframe
+ *   SVG placeholders — no interactive calculator logic is implemented yet. Tracks user
+ *   interactions via a structured audit log and supports Google OAuth identity (stubbed).
+ * @namespace LAB
+ * @property {Array} tools - Array of tool definition objects: { id, name, icon, desc }
+ * @property {string} GOOGLE_CLIENT_ID - OAuth client ID; currently empty string —
+ *   Google Sign-In shows "coming soon" placeholder
+ *
+ * @property {function} start - Entry point; logs 'open_lab' audit action, calls
+ *   showMode('lab'), renders tool cards into #lab-panel
+ * @property {function} renderToolCard - Returns HTML string for a single tool card
+ * @property {function} expandTool - Expands a tool card to show wireframe SVG and
+ *   feedback controls; logs 'view_tool' audit action
+ * @property {function} wireframeSVG - Returns a static wireframe SVG string for a given
+ *   tool ID (all five tools have distinct placeholder layouts)
+ * @property {function} saveRank - Persists user's 1-5 star ranking for a tool; logs
+ *   'set_rank' audit action
+ * @property {function} submitToolFeedback - Saves freeform tool feedback text; logs
+ *   'submit_feedback' audit action
+ * @property {function} submitIdea - Saves a new feature idea; logs 'submit_idea' audit action
+ * @property {function} leaveLab - Logs 'time_in_lab' duration audit action, returns to menu
+ * @property {function} getAuditSummary - Returns a summary object of audit log counts by action
+ * @property {function} exportLabData - Serializes lab data + audit log to JSON and triggers download
+ *
+ * @interactions Storage keys: 'conjugate_lab_data' (ranks/feedback/ideas),
+ *   'conjugate_lab_audit' (audit log), 'conjugate_google_user' (OAuth identity).
+ *   Lab data IS included in SYNC export via SYNC.getAllData().
+ * @sideeffects DOM root: #lab-panel
+ * @limitations All five tools are wireframe SVGs with no interactive logic yet.
+ *   Google OAuth flow shows "coming soon" — GOOGLE_CLIENT_ID is an empty string.
+ */
 var LAB = {
   tools: [
     { id: 'scenario', name: 'Scenario Simulator', icon: '🎯', desc: 'Walk through coaching scenarios — athlete profiles, weak points, exercise selection decisions.' },
@@ -2990,23 +3313,58 @@ var LAB = {
     return null;
   },
 
+  _clientIdKey: 'conjugate_google_client_id',
+
+  getClientId: function() {
+    return localStorage.getItem(this._clientIdKey) || this.GOOGLE_CLIENT_ID || '';
+  },
+
+  saveClientId: function() {
+    var input = document.getElementById('labGoogleClientId');
+    if (!input) return;
+    var val = input.value.trim();
+    if (!val) { showToast('Please paste a Client ID first'); return; }
+    localStorage.setItem(this._clientIdKey, val);
+    showToast('Client ID saved — initializing Google Sign-In…');
+    this.renderAuthBar();
+  },
+
   initGoogleAuth: function(container) {
+    var clientId = this.getClientId();
+    var self = this;
+
     if (typeof google === 'undefined' || !google.accounts) {
-      container.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted)">Sign‑in unavailable offline</span>';
+      if (clientId) {
+        container.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted)">Sign‑in unavailable offline</span>';
+      } else {
+        container.innerHTML = self._clientIdSetupHTML();
+      }
       return;
     }
-    var self = this;
-    if (this.GOOGLE_CLIENT_ID) {
+
+    if (clientId) {
       google.accounts.id.initialize({
-        client_id: this.GOOGLE_CLIENT_ID,
+        client_id: clientId,
         callback: function(response) { self.handleCredentialResponse(response); }
       });
       google.accounts.id.renderButton(container, {
         theme: 'outline', size: 'medium', text: 'signin_with', shape: 'pill'
       });
     } else {
-      container.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted)">Google sign‑in coming soon</span>';
+      container.innerHTML = self._clientIdSetupHTML();
     }
+  },
+
+  _clientIdSetupHTML: function() {
+    return '<details style="font-size:0.8rem;color:var(--text-muted)">' +
+      '<summary style="cursor:pointer;user-select:none">🔑 Set up Google Sign-In</summary>' +
+      '<div style="margin-top:0.5rem;padding:0.75rem;background:var(--neutral-bg);border-radius:8px">' +
+        '<p style="margin:0 0 0.5rem">Paste your <strong>OAuth 2.0 Client ID</strong> from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style="color:var(--accent)">Google Cloud Console</a>.</p>' +
+        '<p style="margin:0 0 0.5rem;font-size:0.75rem;color:var(--text-muted)">Add <code>' + (location.origin || 'http://localhost:3000') + '</code> to Authorized JavaScript origins.</p>' +
+        '<input id="labGoogleClientId" type="text" placeholder="123456789.apps.googleusercontent.com" style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;background:var(--input-bg);color:var(--text);box-sizing:border-box;margin-bottom:0.5rem">' +
+        '<button onclick="LAB.saveClientId()" style="padding:0.35rem 0.8rem;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem">Save &amp; Enable</button>' +
+      '</div>' +
+    '</details>';
   },
 
   handleCredentialResponse: function(response) {
@@ -3029,15 +3387,22 @@ var LAB = {
     showToast('Signed out');
   },
 
+  clearClientId: function() {
+    localStorage.removeItem(this._clientIdKey);
+    this.renderAuthBar();
+    showToast('Google Client ID removed');
+  },
+
   renderAuthBar: function() {
     var bar = document.getElementById('lab-auth-bar');
     if (!bar) return;
     var user = this.getGoogleUser();
     if (user) {
       bar.innerHTML =
-        '<img src="' + esc(user.picture || '') + '" alt="">' +
-        '<span><strong>' + esc(user.name) + '</strong></span>' +
-        '<button class="lab-signout" onclick="LAB.signOut()">Sign out</button>';
+        '<img src="' + esc(user.picture || '') + '" alt="" style="width:28px;height:28px;border-radius:50%;vertical-align:middle;margin-right:0.4rem">' +
+        '<span><strong>' + esc(user.name) + '</strong> <span style="font-size:0.75rem;color:var(--text-muted)">' + esc(user.email || '') + '</span></span>' +
+        '<button class="lab-signout" onclick="LAB.signOut()" style="margin-left:auto">Sign out</button>' +
+        (this.getClientId() ? '<button onclick="LAB.clearClientId()" style="margin-left:0.5rem;font-size:0.75rem;background:none;border:none;cursor:pointer;color:var(--text-muted)">Remove Client ID</button>' : '');
     } else {
       bar.innerHTML = '';
       this.initGoogleAuth(bar);
@@ -3435,6 +3800,49 @@ var LAB = {
 // =======================================
 // SYNC (cross-device via shareable link)
 // =======================================
+/**
+ * @description Cross-device data synchronization via base64-encoded JSON codes and links.
+ *   Exports all app data (study data + lab data + audit log + user identity) as a compact
+ *   string that can be shared as a URL parameter or a copyable code. Import is fully
+ *   destructive — it completely replaces local data with no merge.
+ * @namespace SYNC
+ * @property {string} _userKey - localStorage key for user identity: 'conjugate_sync_user'
+ *
+ * @property {function} getUser - Returns parsed user identity object from localStorage,
+ *   or null if not set
+ * @property {function} setUser - Persists a user identity object (name) to localStorage
+ * @property {function} clearUser - Removes user identity from localStorage
+ * @property {function} getAllData - Assembles full export payload: study data, lab data,
+ *   audit log, survey feedback log (sv), user identity, and syncVersion: 3
+ * @property {function} importAllData - Destructively replaces all local data from a
+ *   parsed payload object; rejects payload if syncVersion < 2; restores sv feedback if present
+ * @property {function} encode - Serializes an object to emoji-safe base64:
+ *   JSON → encodeURIComponent → btoa
+ * @property {function} decode - Reverses encode: atob → decodeURIComponent → JSON.parse
+ * @property {function} generateSyncLink - Returns a full URL string with encoded data
+ *   as the 'sync' query parameter
+ * @property {function} generateSyncCode - Returns just the encoded base64 string
+ * @property {function} checkIncomingSync - Reads 'sync' URL param on page load; if
+ *   present, decodes and calls showImportConfirm()
+ * @property {function} showImportConfirm - Renders a confirmation modal showing data
+ *   summary before the user approves a destructive import
+ * @property {function} showModal - Renders the SYNC modal UI into #sync-modal
+ * @property {function} closeModal - Hides #sync-modal
+ * @property {function} saveName - Persists user's display name from the modal input
+ * @property {function} copyLink - Generates and copies sync link to clipboard
+ * @property {function} copyCode - Generates and copies sync code to clipboard
+ * @property {function} importFromCode - Reads code from modal textarea, decodes, and
+ *   calls showImportConfirm()
+ * @property {function} showStatus - Displays a status message inside the modal with
+ *   optional type ('success' | 'error') styling
+ *
+ * @interactions Export includes: Store data, LAB data, LAB audit log, user identity.
+ *   Export does NOT include: SV feedback log ('conjugate_feedback_log').
+ *   Import calls Store.save(), writeJSON() for lab/audit keys.
+ * @sideeffects DOM root: #sync-modal
+ * @limitations Import is fully destructive — there is no merge strategy. syncVersion
+ *   field (value: 2) is required; imports without it are rejected.
+ */
 var SYNC = {
   _userKey: 'conjugate_sync_user',
 
@@ -3472,19 +3880,22 @@ var SYNC = {
 
   // Collect ALL app data into one object
   getAllData: function() {
+    var svLog = [];
+    try { svLog = JSON.parse(localStorage.getItem('conjugate_feedback_log') || '[]'); } catch(e) {}
     return {
       study: Store.get(),
       lab: LAB.getLabData(),
       audit: LAB.getAuditLog(),
+      sv: svLog,
       user: this.getUser(),
-      syncVersion: 2,
+      syncVersion: 3,
       exportDate: Date.now()
     };
   },
 
   // Restore all data from import
   importAllData: function(data) {
-    if (!data || !data.syncVersion) return false;
+    if (!data || !data.syncVersion || data.syncVersion < 2) return false;
     try {
       // Study data — ensure _earnedBadges is preserved or seeded so post-sync doesn't spam badge toasts
       if (data.study) {
@@ -3506,6 +3917,10 @@ var SYNC = {
       // Audit log
       if (data.audit) {
         localStorage.setItem(LAB._auditKey, JSON.stringify(data.audit));
+      }
+      // Survey feedback (added in syncVersion 3)
+      if (data.sv && Array.isArray(data.sv)) {
+        localStorage.setItem('conjugate_feedback_log', JSON.stringify(data.sv));
       }
       // User info
       if (data.user && data.user.name) {
@@ -3572,6 +3987,7 @@ var SYNC = {
     var userName = data.user ? data.user.name : 'Unknown';
     var exportDate = data.exportDate ? new Date(data.exportDate).toLocaleDateString() : 'Unknown';
     var sessions = data.study ? (data.study.totalSessions || 0) : 0;
+    var feedbackCount = (data.sv && Array.isArray(data.sv)) ? data.sv.length : 0;
 
     var overlay = document.createElement('div');
     overlay.className = 'sync-overlay';
@@ -3580,8 +3996,9 @@ var SYNC = {
         '<h2>📥 Incoming Sync</h2>' +
         '<p>Import study data from <strong>' + esc(userName) + '</strong>?</p>' +
         '<div style="background:var(--neutral-bg);padding:0.75rem;border-radius:8px;font-size:0.85rem;margin-bottom:1rem">' +
-          '📊 <strong>' + sessions + '</strong> sessions &bull; ' +
-          '📅 Exported ' + esc(exportDate) +
+          '📊 <strong>' + sessions + '</strong> sessions' +
+          (feedbackCount ? ' &bull; 💬 <strong>' + feedbackCount + '</strong> feedback entries' : '') +
+          ' &bull; 📅 Exported ' + esc(exportDate) +
         '</div>' +
         '<p style="color:var(--incorrect);font-size:0.8rem">⚠️ This will replace your current data on this device.</p>' +
         '<button class="sync-btn sync-btn-primary" id="syncConfirmYes">Import Data</button>' +
@@ -3757,6 +4174,25 @@ var SYNC = {
 // =======================================
 // INIT
 // =======================================
+/**
+ * @description Application bootstrap function. Wires all top-level event listeners,
+ *   applies saved dark mode preference, checks for an incoming sync URL parameter,
+ *   registers the service worker, and initializes the stats bar. Called once on
+ *   DOMContentLoaded.
+ * @function
+ * @param none
+ * @sideeffects Registers event listeners on: darkModeBtn, fc-mode-btn, fc-start-btn,
+ *   fcSectionFilter, qz-mode-btn, ft-mode-btn, review-mode-btn, dash-mode-btn,
+ *   survey-mode-btn, lab-mode-btn, syncBtn. Calls SYNC.checkIncomingSync(),
+ *   updateStatsBar(), and navigator.serviceWorker.register('./sw.js').
+ * @interactions Calls Store.get/save, applyDarkMode, showMode, FC.start, QZ.setup,
+ *   FT.start, RV.start, DASH.start, SV.start, LAB.start, SYNC.showModal,
+ *   SYNC.checkIncomingSync, updateStatsBar
+ * @limitations No null-guards on getElementById calls — a missing DOM element will
+ *   throw and prevent all subsequent listeners in the function from being registered.
+ *   No global keyboard shortcuts. No beforeunload listener.
+ *   Service worker registration failure is non-fatal (caught and ignored).
+ */
 function initApp() {
   // Dark mode
   var data = Store.get();
