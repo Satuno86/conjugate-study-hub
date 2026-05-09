@@ -3397,23 +3397,25 @@ var LAB = {
   },
 
   // ── Firebase email magic-link auth ─────────────────────────────────────────
-  _firebaseConfigKey: 'conjugate_firebase_config',
-  _firebaseEmailKey:  'conjugate_email_for_signin',
+  _FIREBASE_CONFIG: {
+    apiKey:            'AIzaSyAcoEy2nUPxeq76lS0VhNmZiI4M0wiU0Fw',
+    authDomain:        'conjugate-method-study.firebaseapp.com',
+    projectId:         'conjugate-method-study',
+    storageBucket:     'conjugate-method-study.firebasestorage.app',
+    messagingSenderId: '192829169743',
+    appId:             '1:192829169743:web:3faaf7e2e384349dfcca3a'
+  },
+  _firebaseEmailKey: 'conjugate_email_for_signin',
   _firebaseApp:  null,
   _firebaseAuth: null,
   _firebaseUser: null,
 
-  getFirebaseConfig: function() {
-    try { return JSON.parse(localStorage.getItem(this._firebaseConfigKey) || 'null'); } catch(e) { return null; }
-  },
-
   initFirebase: function() {
-    var cfg = this.getFirebaseConfig();
-    if (!cfg || typeof firebase === 'undefined') return false;
+    if (typeof firebase === 'undefined') return false;
     var self = this;
     try {
       try { this._firebaseApp = firebase.app('conjugate'); }
-      catch(e) { this._firebaseApp = firebase.initializeApp(cfg, 'conjugate'); }
+      catch(e) { this._firebaseApp = firebase.initializeApp(this._FIREBASE_CONFIG, 'conjugate'); }
       this._firebaseAuth = firebase.auth(this._firebaseApp);
       this._firebaseAuth.onAuthStateChanged(function(user) {
         self._firebaseUser = user || null;
@@ -3421,29 +3423,6 @@ var LAB = {
       });
       return true;
     } catch(e) { return false; }
-  },
-
-  saveFirebaseConfig: function() {
-    var k = (document.getElementById('labFbApiKey')     || {}).value || '';
-    var d = (document.getElementById('labFbAuthDomain') || {}).value || '';
-    k = k.trim(); d = d.trim();
-    if (!k || !d) { showToast('API Key and Auth Domain are both required'); return; }
-    localStorage.setItem(this._firebaseConfigKey, JSON.stringify({ apiKey: k, authDomain: d }));
-    showToast('Firebase config saved — initializing…');
-    this.initFirebase();
-    this.renderAuthBar();
-  },
-
-  clearFirebaseConfig: function() {
-    localStorage.removeItem(this._firebaseConfigKey);
-    if (this._firebaseAuth) {
-      try { this._firebaseAuth.signOut(); } catch(e) {}
-    }
-    this._firebaseApp  = null;
-    this._firebaseAuth = null;
-    this._firebaseUser = null;
-    this.renderAuthBar();
-    showToast('Firebase config removed');
   },
 
   sendMagicLink: function() {
@@ -3491,31 +3470,15 @@ var LAB = {
     this._firebaseAuth.signOut().then(function() { showToast('Signed out'); });
   },
 
-  _firebaseSetupHTML: function() {
-    return '<details style="font-size:0.8rem;color:var(--text-muted)">' +
-      '<summary style="cursor:pointer;user-select:none">📧 Set up email sign-in</summary>' +
-      '<div style="margin-top:0.5rem;padding:0.75rem;background:var(--neutral-bg);border-radius:8px">' +
-        '<p style="margin:0 0 0.4rem">Create a free <a href="https://console.firebase.google.com/" target="_blank" rel="noopener" style="color:var(--accent)">Firebase project</a>, enable <strong>Email/Password → Email link (passwordless)</strong> under Authentication › Sign-in methods, then paste your Web App config below.</p>' +
-        '<p style="margin:0 0 0.4rem;font-size:0.75rem;color:var(--text-muted)">Add <code>' + (location.origin || 'http://localhost:3000') + '</code> to Authorized domains.</p>' +
-        '<input id="labFbApiKey" type="text" placeholder="API Key (AIza…)" style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;background:var(--input-bg);color:var(--text);box-sizing:border-box;margin-bottom:0.4rem">' +
-        '<input id="labFbAuthDomain" type="text" placeholder="project-id.firebaseapp.com" style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;background:var(--input-bg);color:var(--text);box-sizing:border-box;margin-bottom:0.5rem">' +
-        '<button onclick="LAB.saveFirebaseConfig()" style="padding:0.35rem 0.8rem;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem">Save &amp; Enable</button>' +
-      '</div>' +
-    '</details>';
-  },
-
   _emailSignInFormHTML: function() {
     return '<form onsubmit="event.preventDefault();LAB.sendMagicLink()" ' +
         'style="display:flex;gap:0.5rem;align-items:center;width:100%">' +
-      '<span>📧</span>' +
-      '<input id="labEmailInput" type="email" placeholder="your@email.com" required ' +
+      '<span style="font-size:1.1rem">📧</span>' +
+      '<input id="labEmailInput" type="email" placeholder="Enter your email…" required ' +
         'style="flex:1;min-width:0;padding:0.4rem 0.6rem;border:1px solid var(--border);' +
         'border-radius:6px;font-size:0.85rem;background:var(--input-bg);color:var(--text)">' +
       '<button type="submit" style="padding:0.4rem 0.9rem;background:var(--accent);color:#fff;' +
-        'border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;white-space:nowrap">Send link</button>' +
-      '<button type="button" onclick="LAB.clearFirebaseConfig()" title="Remove Firebase config" ' +
-        'style="font-size:1rem;line-height:1;background:none;border:none;cursor:pointer;' +
-        'color:var(--text-muted);padding:0 0.2rem">&times;</button>' +
+        'border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;white-space:nowrap">Send me a link</button>' +
     '</form>';
   },
 
@@ -3528,10 +3491,7 @@ var LAB = {
     if (this._firebaseUser) {
       bar.innerHTML =
         '<span>✉️ <strong>' + esc(this._firebaseUser.email || '') + '</strong></span>' +
-        '<button class="lab-signout" onclick="LAB.firebaseSignOut()" style="margin-left:auto">Sign out</button>' +
-        '<button onclick="LAB.clearFirebaseConfig()" ' +
-          'style="margin-left:0.5rem;font-size:0.75rem;background:none;border:none;cursor:pointer;color:var(--text-muted)">' +
-          'Remove config</button>';
+        '<button class="lab-signout" onclick="LAB.firebaseSignOut()" style="margin-left:auto">Sign out</button>';
       return;
     }
 
@@ -3552,15 +3512,11 @@ var LAB = {
       return;
     }
 
-    // Signed out — show Google + email options side by side
-    var hasFirebaseConfig = !!this.getFirebaseConfig();
+    // Signed out — email form (always available) + optional Google button
     bar.innerHTML =
       '<div style="display:flex;gap:1rem;align-items:center;width:100%;flex-wrap:wrap">' +
-        '<div id="lab-google-auth" style="flex:1;min-width:180px"></div>' +
-        '<div style="font-size:0.8rem;color:var(--text-muted);flex-shrink:0">or</div>' +
-        '<div style="flex:1;min-width:200px">' +
-          (hasFirebaseConfig ? self._emailSignInFormHTML() : self._firebaseSetupHTML()) +
-        '</div>' +
+        '<div id="lab-google-auth" style="flex-shrink:0"></div>' +
+        '<div style="flex:1;min-width:220px">' + self._emailSignInFormHTML() + '</div>' +
       '</div>';
     this.initGoogleAuth(document.getElementById('lab-google-auth'));
   },
