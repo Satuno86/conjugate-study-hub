@@ -1,7 +1,7 @@
 # Conjugate Method Study Hub — Developer Handoff
 
-**Version:** Post-swarm audit (commit e495323+)  
-**Status:** ~95% production-ready  
+**Version:** Post-swarm audit + login gate + magic link audit  
+**Status:** ~97% production-ready  
 **Prepared for:** Anna  
 **Audit date:** 2026-05-09
 
@@ -186,11 +186,64 @@ The `check()` function receives the full Store data object. It runs on every ses
 | `Drill Weakest` button requires section-specific quiz history | The button stays hidden unless the user has run a quiz filtered to a specific section. Missed questions from Full Test (which records `section: 'all'`) don't trigger it. |
 | DASH with 0 sessions shows early state without badge grid | Intentional but may confuse users who expect to see locked badges immediately. |
 | `DASH.sectionBreakdownHTML()` — bar fill shows "untouched %" but label shows "missed count" | Slightly confusing: a full green bar means few misses, but the label reads "X missed". Consider relabeling. |
-| Login is local-email only (auth rebuild pending) | Firebase magic-link sign-in was broken (Anna hit it). Replaced with a localStorage-only email gate: user enters email on first visit, it's saved under `conjugate_user_email`, and the app loads. No password, no remote verification, no cross-device identity. `LAB.initLocalAuth` / `saveEmailAndContinue` / `signOutLocal` handle the flow. Real auth needs to be rebuilt. |
-| Google OAuth requires user-supplied Client ID | LAB auth bar shows a collapsible setup UI. User pastes their OAuth 2.0 Client ID (from Google Cloud Console) into an input; it's saved to localStorage key `conjugate_google_client_id` and persists across sessions. Add `location.origin` to Authorized JavaScript origins in GCP. |
+| Firebase email quota (⚠️ action required) | Spark (free) plan allows **100 email sign-in links per day** across the whole project. Hitting the limit returns `auth/quota-exceeded` and blocks all new sign-ins until midnight Pacific. See Firebase section below for the fix. |
+| Firebase Dynamic Links deprecation (no action needed) | Firebase console shows a warning about Dynamic Links shutting down — this only affects **mobile app** email links. Our web flow uses `firebaseapp.com/__/auth/action` which is unaffected. |
+| Google OAuth hidden | Google sign-in methods are in the code but not surfaced in the UI. Magic link is the only visible auth path. |
 | No keyboard shortcuts | Accessibility gap — no keyboard navigation beyond tab/enter for buttons. |
 | No `beforeunload` listener | Data saves synchronously on each interaction, so this is fine in practice. |
 | `FT` scenario questions not auto-graded | By design — shown with textarea, marked "skipped" in scoring. Self-assessment only. |
+
+---
+
+## Firebase Auth — Setup & Quota Fix
+
+### Project
+- **Project ID:** `conjugate-method-study`
+- **Owner:** Auston (auston@tab3r.com)
+- **Console:** https://console.firebase.google.com/project/conjugate-method-study
+- **Plan:** Spark (free) — **quota risk for production use**
+
+### How the magic link flow works
+1. User enters email on the login screen → app calls `LAB.sendMagicLink()`
+2. Firebase sends an email from `noreply@conjugate-method-study.firebaseapp.com`
+3. User clicks "Sign in to conjugate-method-study" link in the email
+4. Firebase redirects to `https://conjugate-method-study.firebaseapp.com/__/auth/action?...`
+5. Firebase redirects to `http://[your-domain]/?apiKey=...&oobCode=...&mode=signIn`
+6. App's `checkMagicLinkReturn()` detects these URL params, calls `signInWithEmailLink()`
+7. `onAuthStateChanged` fires → `showAppAuth(user)` → app unlocks
+
+### ⚠️ Quota limit (fix before real users)
+
+| Plan | Daily email limit | Cost |
+|------|-----------------|------|
+| Spark (current) | **100 emails/day** per project — resets midnight Pacific | Free |
+| Blaze (pay-as-you-go) | 10,000/month free, then $0.0012 per email | ~$0 for small apps |
+
+**Tested and confirmed:** 5 sends succeeded, 6th returned `auth/quota-exceeded`. The quota is shared across all users — if 100 people try to sign in on the same day, later users are blocked.
+
+### Fix option 1: Upgrade to Blaze (recommended, ~free)
+1. Go to https://console.firebase.google.com/project/conjugate-method-study/usage/details
+2. Click **Upgrade** → select **Blaze** → add a billing account
+3. Set a **budget alert** at $1/month — you'll get an email if costs spike
+4. 10,000 email sign-ins/month costs nothing. At $0.0012/email you'd need 833 sign-ins/day before paying a cent.
+
+### Fix option 2: Custom SMTP (no Firebase billing needed)
+Configure Firebase Auth to send through your own email provider (SendGrid, Mailgun, Postmark, etc.). Free tiers on those services are generous (SendGrid: 100 emails/day free, Mailgun: 1,000/month free).
+
+Steps:
+1. In Firebase Console → Authentication → Templates → click the pencil on "Email link" template
+2. At the bottom, click **"Customize action URL"** and set your own SMTP settings
+3. Or use **Firebase Extensions** → "Trigger Email" extension with your SMTP credentials
+
+### Authorized domains
+The magic link's `continueUrl` must be in Firebase's authorized domain list:
+- `localhost` — already authorized (for dev)
+- Your production domain (e.g. `conjugate-study-hub.vercel.app`) — **must be added manually**
+
+To add: Firebase Console → Authentication → Settings → Authorized domains → Add domain
+
+### Config location in code
+`index.html` — search for `_FIREBASE_CONFIG` (~line 3182). The `apiKey` is a **public identifier** (safe to commit — it scopes API calls to your project, not a secret).
 
 ---
 
