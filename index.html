@@ -639,6 +639,34 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 .badge-name { font-size:0.7rem; font-weight:600; line-height:1.2; }
 .badge-check { font-size:0.65rem; color:var(--correct); }
 
+/* =================== LOGIN PANEL =================== */
+#login-panel {
+  display:none; align-items:center; justify-content:center;
+  min-height:55vh; padding:2rem;
+}
+.login-card {
+  background:var(--card); border-radius:20px; padding:2.5rem 2rem;
+  max-width:420px; width:100%; text-align:center;
+  box-shadow:0 8px 32px rgba(0,0,0,0.12); border:1px solid var(--border);
+}
+.login-card .login-icon { font-size:3rem; margin-bottom:0.75rem; }
+.login-card h2 { margin:0 0 0.4rem; font-size:1.5rem; }
+.login-card .login-sub { color:var(--text-muted); font-size:0.9rem; margin:0 0 1.75rem; line-height:1.5; }
+.login-email-form { display:flex; flex-direction:column; gap:0.75rem; }
+.login-email-form input[type="email"] {
+  padding:0.7rem 1rem; border:1.5px solid var(--border); border-radius:10px;
+  font-size:0.95rem; background:var(--input-bg, var(--bg)); color:var(--text);
+  text-align:center;
+}
+.login-email-form input[type="email"]:focus { outline:none; border-color:var(--accent); }
+.login-email-form button[type="submit"] {
+  padding:0.75rem 1rem; background:var(--accent); color:#fff; border:none;
+  border-radius:10px; font-size:1rem; font-weight:600; cursor:pointer;
+  transition:opacity 0.2s;
+}
+.login-email-form button[type="submit"]:hover { opacity:0.88; }
+.login-status { margin-top:1rem; font-size:0.875rem; color:var(--text-muted); line-height:1.5; }
+
 /* =================== WIP LAB =================== */
 .lab-wip-badge {
   display:inline-block; background:#9333ea; color:white; font-size:0.65rem;
@@ -841,6 +869,8 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 <header>
   <div class="header-controls">
     <span id="syncUserBar" class="sync-user-bar" style="display:none"></span>
+    <span id="headerUserEmail" style="display:none;font-size:0.75rem;color:var(--text-muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    <button class="icon-btn" id="headerSignOutBtn" title="Sign out" aria-label="Sign out" style="display:none;font-size:0.85rem" onclick="LAB.firebaseSignOut()">🚪</button>
     <button class="icon-btn" id="syncBtn" title="Sync across devices" aria-label="Sync across devices">&#x1F504;</button>
     <button class="icon-btn" id="darkModeBtn" title="Toggle dark mode" aria-label="Toggle dark mode">&#x1F319;</button>
   </div>
@@ -921,6 +951,15 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
     <span class="mode-icon">&#x1F9EA;</span>
     <h3>WIP Lab <span class="lab-wip-badge">WIP</span></h3>
     <p>Interactive coaching tools — rank, comment, and shape what gets built next.</p>
+  </div>
+</div>
+<div id="login-panel">
+  <div class="login-card">
+    <div class="login-icon">⚡</div>
+    <h2>Conjugate Method Study Hub</h2>
+    <p class="login-sub">Sign in to track your progress, earn badges, and sync across devices.</p>
+    <div id="login-form-area"></div>
+    <div class="login-status" id="login-status"></div>
   </div>
 </div>
 <div id="flashcard-panel" class="mode-panel"></div>
@@ -1563,6 +1602,37 @@ function backToMenu() {
   if (typeof QZ !== 'undefined' && QZ.timer) { clearInterval(QZ.timer); QZ.timer = null; }
   if (typeof RV !== 'undefined' && RV.timer) { clearInterval(RV.timer); RV.timer = null; }
   showMode(null);
+}
+
+var _appAuthTimeout = null;
+
+function showAppAuth(user) {
+  if (_appAuthTimeout) { clearTimeout(_appAuthTimeout); _appAuthTimeout = null; }
+  var loginPanel = document.getElementById('login-panel');
+  var modeSelector = document.getElementById('mode-selector');
+  var statsBar = document.getElementById('statsBar');
+  var headerEmail = document.getElementById('headerUserEmail');
+  var headerSignOut = document.getElementById('headerSignOutBtn');
+  if (user) {
+    if (loginPanel) loginPanel.style.display = 'none';
+    if (modeSelector) modeSelector.style.display = '';
+    if (statsBar) statsBar.style.display = '';
+    if (headerEmail) { headerEmail.textContent = user.email || ''; headerEmail.style.display = ''; }
+    if (headerSignOut) headerSignOut.style.display = '';
+    updateStatsBar();
+  } else {
+    if (loginPanel) {
+      loginPanel.style.display = 'flex';
+      var area = document.getElementById('login-form-area');
+      if (area) area.innerHTML = LAB._loginFormHTML();
+      var status = document.getElementById('login-status');
+      if (status) status.innerHTML = '';
+    }
+    if (modeSelector) modeSelector.style.display = 'none';
+    if (statsBar) statsBar.style.display = 'none';
+    if (headerEmail) headerEmail.style.display = 'none';
+    if (headerSignOut) headerSignOut.style.display = 'none';
+  }
 }
 
 function flagQuestion(btn, qid) {
@@ -3308,30 +3378,36 @@ var LAB = {
       this._firebaseAuth = firebase.auth(this._firebaseApp);
       this._firebaseAuth.onAuthStateChanged(function(user) {
         self._firebaseUser = user || null;
+        showAppAuth(user);
         self.renderAuthBar();
       });
       return true;
     } catch(e) { return false; }
   },
 
-  sendMagicLink: function() {
-    var input = document.getElementById('labEmailInput');
-    if (!input || !this._firebaseAuth) return;
+  sendMagicLink: function(inputId) {
+    var input = document.getElementById(inputId || 'loginEmailInput');
+    if (!input || !this._firebaseAuth) { showToast('Sign-in unavailable — please reload'); return; }
     var email = input.value.trim();
     if (!email || email.indexOf('@') < 0) { showToast('Please enter a valid email'); return; }
+    var btn = input.closest('form') && input.closest('form').querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
     var settings = { url: location.origin + location.pathname, handleCodeInApp: true };
     localStorage.setItem(this._firebaseEmailKey, email);
     var self = this;
     this._firebaseAuth.sendSignInLinkToEmail(email, settings)
       .then(function() {
-        var bar = document.getElementById('lab-auth-bar');
-        if (bar) bar.innerHTML =
-          '<span style="font-size:0.85rem;text-align:center;width:100%">📬 Link sent to ' +
-          '<strong>' + esc(email) + '</strong> — check your inbox.</span>';
+        var status = document.getElementById('login-status');
+        var area = document.getElementById('login-form-area');
+        if (area) area.innerHTML = '';
+        if (status) status.innerHTML =
+          '📬 We sent a link to <strong>' + esc(email) + '</strong>.<br>' +
+          'Check your inbox and click the link to sign in.';
         showToast('Magic link sent!');
       })
       .catch(function(err) {
         localStorage.removeItem(self._firebaseEmailKey);
+        if (btn) { btn.disabled = false; btn.textContent = 'Send me a link'; }
         showToast('Error: ' + (err.message || 'Could not send link'));
       });
   },
@@ -3343,6 +3419,8 @@ var LAB = {
     var email = localStorage.getItem(this._firebaseEmailKey);
     if (!email) email = window.prompt('Please confirm your email to finish signing in:');
     if (!email) return;
+    var status = document.getElementById('login-status');
+    if (status) status.textContent = 'Signing you in…';
     var self = this;
     this._firebaseAuth.signInWithEmailLink(email, window.location.href)
       .then(function() {
@@ -3350,6 +3428,7 @@ var LAB = {
         history.replaceState(null, '', location.pathname);
       })
       .catch(function(err) {
+        if (status) status.textContent = '';
         showToast('Sign-in failed: ' + (err.message || 'Invalid or expired link'));
       });
   },
@@ -3359,55 +3438,23 @@ var LAB = {
     this._firebaseAuth.signOut().then(function() { showToast('Signed out'); });
   },
 
-  _emailSignInFormHTML: function() {
-    return '<form onsubmit="event.preventDefault();LAB.sendMagicLink()" ' +
-        'style="display:flex;gap:0.5rem;align-items:center;width:100%">' +
-      '<span style="font-size:1.1rem">📧</span>' +
-      '<input id="labEmailInput" type="email" placeholder="Enter your email…" required ' +
-        'style="flex:1;min-width:0;padding:0.4rem 0.6rem;border:1px solid var(--border);' +
-        'border-radius:6px;font-size:0.85rem;background:var(--input-bg);color:var(--text)">' +
-      '<button type="submit" style="padding:0.4rem 0.9rem;background:var(--accent);color:#fff;' +
-        'border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;white-space:nowrap">Send me a link</button>' +
+  _loginFormHTML: function() {
+    return '<form class="login-email-form" onsubmit="event.preventDefault();LAB.sendMagicLink(\'loginEmailInput\')">' +
+      '<input id="loginEmailInput" type="email" placeholder="your@email.com" required autocomplete="email">' +
+      '<button type="submit">Send me a link ✉️</button>' +
     '</form>';
   },
 
   renderAuthBar: function() {
     var bar = document.getElementById('lab-auth-bar');
     if (!bar) return;
-    var self = this;
-
-    // Firebase email user — highest priority when signed in
     if (this._firebaseUser) {
       bar.innerHTML =
         '<span>✉️ <strong>' + esc(this._firebaseUser.email || '') + '</strong></span>' +
         '<button class="lab-signout" onclick="LAB.firebaseSignOut()" style="margin-left:auto">Sign out</button>';
-      return;
+    } else {
+      bar.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted)">Not signed in</span>';
     }
-
-    // Google user
-    var googleUser = this.getGoogleUser();
-    if (googleUser) {
-      bar.innerHTML =
-        '<img src="' + esc(googleUser.picture || '') + '" alt="" ' +
-          'style="width:28px;height:28px;border-radius:50%;vertical-align:middle;margin-right:0.4rem">' +
-        '<span><strong>' + esc(googleUser.name) + '</strong> ' +
-          '<span style="font-size:0.75rem;color:var(--text-muted)">' + esc(googleUser.email || '') + '</span></span>' +
-        '<button class="lab-signout" onclick="LAB.signOut()" style="margin-left:auto">Sign out</button>' +
-        (this.getClientId()
-          ? '<button onclick="LAB.clearClientId()" ' +
-              'style="margin-left:0.5rem;font-size:0.75rem;background:none;border:none;cursor:pointer;color:var(--text-muted)">' +
-              'Remove Client ID</button>'
-          : '');
-      return;
-    }
-
-    // Signed out — email form (always available) + optional Google button
-    bar.innerHTML =
-      '<div style="display:flex;gap:1rem;align-items:center;width:100%;flex-wrap:wrap">' +
-        '<div id="lab-google-auth" style="flex-shrink:0"></div>' +
-        '<div style="flex:1;min-width:220px">' + self._emailSignInFormHTML() + '</div>' +
-      '</div>';
-    this.initGoogleAuth(document.getElementById('lab-google-auth'));
   },
 
   start: function() {
@@ -4148,6 +4195,12 @@ function initApp() {
     // Dark mode
     var data = Store.get();
     applyDarkMode(data.darkMode);
+
+    // Hide app content until Firebase auth resolves
+    var modeSelector = document.getElementById('mode-selector');
+    var statsBar = document.getElementById('statsBar');
+    if (modeSelector) modeSelector.style.display = 'none';
+    if (statsBar) statsBar.style.display = 'none';
     el = document.getElementById('darkModeBtn');
     if (el) el.addEventListener('click', function() {
       var d = Store.get();
@@ -4239,8 +4292,17 @@ function initApp() {
     updateOnlineStatus();
 
     // Init Firebase (email magic link auth) and handle link returns
-    LAB.initFirebase();
+    var fbOk = LAB.initFirebase();
     LAB.checkMagicLinkReturn();
+    if (!fbOk) {
+      // Firebase unavailable (offline/blocked) — unlock app and show warning
+      showAppAuth(null);
+      var loginStatus = document.getElementById('login-status');
+      if (loginStatus) loginStatus.textContent = 'Sign-in unavailable — check your connection and reload.';
+    } else {
+      // Failsafe: if onAuthStateChanged never fires in 5s, show login screen
+      _appAuthTimeout = setTimeout(function() { showAppAuth(null); }, 5000);
+    }
 
     // First-time onboarding tour
     if (typeof driver !== 'undefined' && !localStorage.getItem('conjugate_onboarded')) {
