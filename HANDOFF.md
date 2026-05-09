@@ -186,6 +186,7 @@ The `check()` function receives the full Store data object. It runs on every ses
 | `Drill Weakest` button requires section-specific quiz history | The button stays hidden unless the user has run a quiz filtered to a specific section. Missed questions from Full Test (which records `section: 'all'`) don't trigger it. |
 | DASH with 0 sessions shows early state without badge grid | Intentional but may confuse users who expect to see locked badges immediately. |
 | `DASH.sectionBreakdownHTML()` — bar fill shows "untouched %" but label shows "missed count" | Slightly confusing: a full green bar means few misses, but the label reads "X missed". Consider relabeling. |
+| Firebase email magic link auth | Users enter email in the LAB auth bar and click "Send me a link". Firebase sends a sign-in link to their inbox; clicking it signs them in automatically. Firebase project: `conjugate-method-study` (Auston's account). Config is hardcoded in `LAB._FIREBASE_CONFIG`. |
 | Google OAuth requires user-supplied Client ID | LAB auth bar shows a collapsible setup UI. User pastes their OAuth 2.0 Client ID (from Google Cloud Console) into an input; it's saved to localStorage key `conjugate_google_client_id` and persists across sessions. Add `location.origin` to Authorized JavaScript origins in GCP. |
 | No keyboard shortcuts | Accessibility gap — no keyboard navigation beyond tab/enter for buttons. |
 | No `beforeunload` listener | Data saves synchronously on each interaction, so this is fine in practice. |
