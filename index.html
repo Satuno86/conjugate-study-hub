@@ -1,3 +1,40 @@
+<!--
+  ============================================================
+  CONJUGATE METHOD STUDY HUB — Deployment & Maintenance Guide
+  ============================================================
+
+  ARCHITECTURE:
+    Single-file PWA (index.html + sw.js + manifest.json + icons/)
+    Vanilla JS, no build step. All CSS/JS inline.
+
+  CDN DEPENDENCIES (version-pinned):
+    - canvas-confetti 1.9.3 — confetti animations
+    - focus-trap 7.5.4     — modal focus trapping
+    - Chart.js 4.4.4       — dashboard charts
+    - Driver.js 1.3.1      — onboarding tour
+    - localForage 1.10.0   — IndexedDB persistence
+
+  KEY OBJECTS:
+    Store       — main data persistence (localStorage + localForage)
+    SRS         — spaced repetition scheduler for flashcards
+    FC/QZ/FT/RV — study modes (flashcard, quiz, full test, review)
+    DASH        — performance dashboard with Chart.js
+    SV/LAB/SYNC — survey, WIP lab, cross-device sync
+
+  DEPLOYMENT STEPS:
+    1. Host index.html, sw.js, manifest.json, and icons/ on HTTPS
+    2. Bump CACHE_VERSION in sw.js to force cache refresh
+    3. Users see "Update available" toast on next visit
+    4. Test offline by toggling DevTools > Network > Offline
+
+  DEBUGGING:
+    Append ?debug=1 to URL for Eruda mobile console
+
+  DATA SCHEMA VERSION: 2 (see Store._schemaVersion)
+    Migrations run automatically on load for older data.
+    Rolling backups stored in _backup_0, _backup_1, _backup_2.
+    Call Store.restoreFromBackup() to recover from data corruption.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -25,6 +62,14 @@
 <!-- Firebase (for WIP Lab email magic link auth) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js" defer></script>
+
+<!-- CDN Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/focus-trap@7.5.4/dist/focus-trap.umd.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js" defer></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
+<script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js" defer></script>
 
 <style>
 /* =================== THEME VARIABLES =================== */
@@ -420,6 +465,9 @@ header p { font-size:0.9rem; opacity:0.85; }
 .dash-stat .label { font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem; }
 .dash-chart-container { position:relative; width:100%; overflow:hidden; }
 .dash-chart-container svg { width:100%; height:auto; display:block; }
+.dash-chart-container canvas { width:100% !important; height:100% !important; }
+#dashTrendChart { min-height:200px; }
+#dashSectionChart { min-height:300px; }
 .dash-section-bar { margin-bottom:0.6rem; }
 .dash-section-label {
   display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:0.25rem;
@@ -554,11 +602,24 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 }
 .toast.dismissing { animation: slideUp 0.3s ease forwards; }
 
-/* Confetti canvas */
-#confetti-canvas {
-  position:fixed; top:0; left:0; width:100%; height:100%;
-  pointer-events:none; z-index:9998;
+/* Reduced motion: disable all animations for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
+
+/* PWA Install Banner */
+.install-banner {
+  position:fixed; bottom:0; left:0; right:0; z-index:9000;
+  background:var(--primary); color:#fff; padding:1rem 1.5rem;
+  display:flex; align-items:center; justify-content:space-between; gap:1rem;
+  box-shadow:0 -4px 20px rgba(0,0,0,0.3);
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+.install-banner button { flex-shrink:0; }
+.install-banner .install-dismiss { background:none; border:none; color:#fff; opacity:0.7; cursor:pointer; font-size:1.2rem; padding:0.25rem; }
 
 /* =================== BADGES =================== */
 .badge-grid {
@@ -757,10 +818,21 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 
 /* =================== PRINT =================== */
 @media print {
-  header { background:white !important; color:black; border-bottom:2px solid black; }
-  #mode-selector, .fc-actions, .fc-hint-tap, .test-controls, .quiz-header, .btn, .stats-bar, .header-controls { display:none; }
-  .question-card { page-break-inside:avoid; border:1px solid #ccc; }
-  .results-panel { box-shadow:none; border:1px solid #ccc; }
+  * { color-adjust: exact; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background:#fff !important; color:#000 !important; font-family: Georgia, 'Times New Roman', serif; padding:0; }
+  header { background:#fff !important; color:#000; border-bottom:2px solid #000; }
+  header p { color:#444 !important; }
+  #mode-selector, .fc-actions, .fc-hint-tap, .test-controls, .quiz-header, .stats-bar,
+  .header-controls, .btn, .install-banner, .toast, #offlineIndicator,
+  .sync-overlay, .flag-btn, .dash-chart-container canvas { display:none !important; }
+  .mode-panel { display:block !important; }
+  .question-card { page-break-inside:avoid; border:1px solid #ccc; box-shadow:none; margin-bottom:0.5rem; }
+  .question-card .answer-reveal { display:block !important; }
+  .results-card, .dash-card { box-shadow:none; border:1px solid #ccc; page-break-inside:avoid; }
+  .fc-card { transform:none !important; }
+  .fc-back { display:block !important; position:static !important; }
+  a { text-decoration:underline; }
+  @page { margin: 1.5cm; }
 }
 </style>
 </head>
@@ -860,34 +932,25 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 <div id="lab-panel" class="mode-panel"></div>
 
 <script>
-/**
- * Conjugate Method Study Hub — Application Script
- *
- * MODULE MAP:
- *   Store        - Central localStorage state manager (conjugate_study_data)
- *   FC           - Flashcard flip-card study mode
- *   QZ           - Custom quiz builder with multi-filter selection
- *   FT           - Full 105-question practice test
- *   RV           - Review mode for missed questions
- *   DASH         - Performance analytics dashboard
- *   SV           - User feedback/survey (conjugate_feedback_log)
- *   LAB          - Advanced WIP tool suite (conjugate_lab_data, conjugate_lab_audit)
- *   SYNC         - Cross-device sync via base64 codes (conjugate_sync_user)
- *   initApp()    - Bootstrap: event wiring, service worker, stats init
- *
- * DATA FLOW:
- *   QUESTIONS → FC, QZ, FT, RV (read-only)
- *   FC/QZ/FT/RV → Store (write: miss/correct/session)
- *   Store → DASH (read: all stats)
- *   Store + LAB → SYNC (export together)
- *   SYNC → Store (import: destructive replace)
- *
- * KNOWN ISSUES (see individual JSDoc for details):
- *   - SV feedback not included in SYNC export
- *   - LAB tools are wireframe SVGs only (no interactive calculators yet)
- *   - _earnedBadges not in Store._default() schema
- *   - SYNC import is fully destructive (no merge)
- */
+// =======================================
+// GLOBAL ERROR HANDLER
+// =======================================
+window.onerror = function(msg, src, line, col, err) {
+  try {
+    var label = 'Error: ' + (msg || 'Unknown error');
+    if (typeof showToast === 'function') showToast(label);
+    var log = JSON.parse(localStorage.getItem('_errorLog') || '[]');
+    log.push({ msg: msg, src: src, line: line, col: col, ts: Date.now() });
+    if (log.length > 50) log = log.slice(-50);
+    localStorage.setItem('_errorLog', JSON.stringify(log));
+  } catch(e) {}
+};
+window.addEventListener('unhandledrejection', function(e) {
+  try {
+    var label = 'Async error: ' + (e.reason && e.reason.message ? e.reason.message : 'Unknown');
+    if (typeof showToast === 'function') showToast(label);
+  } catch(ex) {}
+});
 
 // =======================================
 // DATA
@@ -1039,22 +1102,6 @@ function sectionTagStyle(sectionNum) {
 // =======================================
 // BADGES
 // =======================================
-/**
- * @description Array of 12 achievement definitions. Each badge has a check function
- *   that evaluates current Store data to determine if the badge has been earned.
- * @type {Array<{id: string, name: string, icon: string, desc: string, check: function}>}
- * @property {string} id - Unique badge identifier (e.g. 'first_rep', 'streak_7')
- * @property {string} name - Human-readable badge name displayed in toasts and DASH
- * @property {string} icon - HTML entity string for the badge emoji
- * @property {string} desc - Short description of earn condition shown in DASH
- * @property {function} check - function(data) → boolean; receives Store.get() data object
- *
- * Badge IDs: first_rep, warming_up, dedicated, pr_day, passing,
- *            streak_3, streak_7, streak_30, clean_slate, night_owl,
- *            early_bird, speed_demon
- *
- * @interactions Read by getEarnedBadges(), checkNewBadges(), DASH.badgesHTML()
- */
 var BADGES = [
   {id:'first_rep', name:'First Rep', icon:'&#x1F3CB;&#xFE0F;', desc:'Complete your first study session', check: function(d){ return d.totalSessions >= 1; }},
   {id:'warming_up', name:'Warming Up', icon:'&#x1F525;', desc:'Complete 5 study sessions', check: function(d){ return d.totalSessions >= 5; }},
@@ -1070,15 +1117,6 @@ var BADGES = [
   {id:'speed_demon', name:'Speed Demon', icon:'&#x1F3CE;&#xFE0F;', desc:'Finish a 10-question quiz in under 60 seconds', check: function(d){ return d.quizHistory.some(function(h){ return h.mode === 'quiz' && h.total === 10 && h.timeSeconds > 0 && h.timeSeconds < 60; }); }}
 ];
 
-/**
- * @description Evaluates all badge check functions against current Store data
- *   and returns the IDs of every badge whose condition is satisfied.
- *   Individual check failures are silently swallowed so a single bad check
- *   cannot break the entire badge system.
- * @function
- * @returns {string[]} Array of earned badge IDs (subset of BADGES[*].id)
- * @interactions Reads Store.get(); called by checkNewBadges() and DASH.badgesHTML()
- */
 function getEarnedBadges() {
   var data = Store.get();
   var earned = [];
@@ -1088,17 +1126,6 @@ function getEarnedBadges() {
   return earned;
 }
 
-/**
- * @description Detects newly earned badges by diffing the current earned set against
- *   the previously saved set, then shows a toast notification for the first new badge.
- *   Persists the updated earned set back into Store data under _earnedBadges.
- * @function
- * @sideeffects Updates Store data._earnedBadges; may call showToast()
- * @interactions Reads Store.get() / Store.save(); calls getEarnedBadges(), showToast()
- * @limitations _earnedBadges is NOT declared in Store._default() schema — it will be
- *   undefined on first run and defaults to []. Also only surfaces the FIRST new badge
- *   per session call; subsequent new badges in the same call are silently ignored.
- */
 function checkNewBadges() {
   var data = Store.get();
   var prev = data._earnedBadges || [];
@@ -1126,84 +1153,65 @@ function showToast(msg) {
 }
 
 // =======================================
-// CONFETTI
+// CONFETTI (via canvas-confetti CDN)
 // =======================================
-/**
- * @description Renders an animated confetti burst on the #confetti-canvas element.
- *   Spawns 80 colored particles that fall with gravity and drift, running for ~3 seconds
- *   via requestAnimationFrame. Canvas is sized to fill the full viewport on each call.
- * @function
- * @param none
- * @sideeffects Reads/writes #confetti-canvas dimensions and 2D context; drives animation
- *   loop via requestAnimationFrame for approximately 3000ms
- * @interactions Called by QZ.resultsHTML() render path when score >= 80%;
- *   called directly on 100% quiz score
- * @limitations Canvas element must exist in the DOM (#confetti-canvas); silently returns
- *   if element is missing
- */
 function fireConfetti() {
-  var canvas = document.getElementById('confetti-canvas');
-  if (!canvas) return;
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  var ctx = canvas.getContext('2d');
-  var particles = [];
-  var colors = ['#c4322e','#e8524e','#ff9800','#4caf50','#2196f3','#9333ea','#ffc107'];
-
-  for (var i = 0; i < 80; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: -10 - Math.random() * 40,
-      w: 6 + Math.random() * 6,
-      h: 4 + Math.random() * 4,
-      vx: (Math.random() - 0.5) * 6,
-      vy: 2 + Math.random() * 4,
-      rot: Math.random() * 360,
-      rotV: (Math.random() - 0.5) * 10,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      life: 1
-    });
+  if (typeof confetti === 'function') {
+    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
   }
+}
 
-  var startTime = Date.now();
-  function animate() {
-    var elapsed = Date.now() - startTime;
-    if (elapsed > 3000) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    particles.forEach(function(p) {
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.15;
-      p.rot += p.rotV;
-      p.life = Math.max(0, 1 - elapsed / 3000);
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.rot * Math.PI / 180);
-      ctx.globalAlpha = p.life;
-      ctx.fillStyle = p.color;
-      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
-      ctx.restore();
-    });
-    requestAnimationFrame(animate);
+// =======================================
+// WEB SHARE / CLIPBOARD
+// =======================================
+function shareResults(title, text) {
+  if (navigator.share && navigator.canShare && navigator.canShare({ text: text })) {
+    navigator.share({ title: title, text: text }).catch(function() {});
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast('Results copied to clipboard!'); }
+    catch(e) { showToast('Could not copy results'); }
+    document.body.removeChild(ta);
   }
-  requestAnimationFrame(animate);
+}
+
+// =======================================
+// PWA INSTALL PROMPT
+// =======================================
+var _deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  _deferredInstallPrompt = e;
+  var data = Store.get();
+  if (data.totalSessions >= 1) showInstallBanner();
+});
+
+function showInstallBanner() {
+  if (!_deferredInstallPrompt) return;
+  if (document.querySelector('.install-banner')) return;
+  var banner = document.createElement('div');
+  banner.className = 'install-banner';
+  banner.innerHTML = '<span>Install this app for quick access and offline study</span>' +
+    '<button class="btn btn-sm btn-primary" onclick="acceptInstall()">Install</button>' +
+    '<button class="install-dismiss" onclick="this.parentElement.remove()" aria-label="Dismiss">&times;</button>';
+  document.body.appendChild(banner);
+}
+
+function acceptInstall() {
+  if (!_deferredInstallPrompt) return;
+  _deferredInstallPrompt.prompt();
+  _deferredInstallPrompt.userChoice.then(function() { _deferredInstallPrompt = null; });
+  var banner = document.querySelector('.install-banner');
+  if (banner) banner.remove();
 }
 
 // =======================================
 // SCORE COUNT-UP ANIMATION
 // =======================================
-/**
- * @description Animates a numeric score display counting up from 0% to target% using
- *   a cubic ease-out curve for a satisfying deceleration effect. A setTimeout fallback
- *   ensures the final value is set even if requestAnimationFrame is paused (e.g. in a
- *   backgrounded tab).
- * @function
- * @param {string} elementId - ID of the DOM element whose textContent will be animated
- * @param {number} target - The final percentage value to count up to (e.g. 85 for "85%")
- * @param {number} [durationMs=1200] - Animation duration in milliseconds; defaults to 1200
- * @sideeffects Updates element.textContent on each animation frame with "N%" strings
- * @interactions Called by QZ.resultsHTML() and RV.resultsHTML() after a session completes
- */
 function animateCount(elementId, target, durationMs) {
   var el = document.getElementById(elementId);
   if (!el) return;
@@ -1265,33 +1273,8 @@ function updateWeakestSection() {
 // =======================================
 // LOCAL STORAGE (progress tracking)
 // =======================================
-/**
- * @description Central localStorage state manager. Owns all persistent user data for
- *   the app. All reads go through load() (which merges with defaults for forward
- *   compatibility), and all writes go through save().
- * @namespace Store
- * @property {string} _key - localStorage key: 'conjugate_study_data'
- *
- * @property {function} _default - Returns a fresh default data object with schema:
- *   { darkMode: boolean, missedQuestions: {[id]: number}, flaggedQuestions: {[id]: ISOString},
- *     quizHistory: Array<{date, score, total, mode, section, timeSeconds}>,
- *     studyStreak: {lastDate, current, longest}, totalSessions: number }
- * @property {function} load - Reads and merges localStorage data with defaults
- * @property {function} save - Serializes data object to localStorage
- * @property {function} get - Alias for load(); preferred read accessor
- * @property {function} recordMiss - Increments missedQuestions count for a question ID
- * @property {function} recordCorrect - Decrements (floors at 0, then deletes) missedQuestions entry
- * @property {function} recordSession - Appends to quizHistory, increments totalSessions,
- *   updates studyStreak using local date (not UTC), then calls updateStatsBar/checkNewBadges
- * @property {function} getMissedIds - Returns number[] of question IDs with miss count > 0
- * @property {function} toggleFlag - Toggles flagged state for a question; returns new boolean state
- * @property {function} isFlagged - Returns boolean flagged state for a question ID
- * @property {function} getFlaggedCount - Returns total count of currently flagged questions
- *
- * @interactions Written by FC, QZ, FT, RV; read by DASH, SYNC, updateStatsBar, checkNewBadges
- * @limitations _earnedBadges is NOT included in _default() schema (added dynamically by
- *   checkNewBadges). quizHistory is trimmed to the last 50 entries on each recordSession call.
- */
+/** @typedef {{darkMode:boolean, missedQuestions:Object.<number,number>, flaggedQuestions:Object, quizHistory:Array, studyStreak:{lastDate:string,current:number,longest:number}, totalSessions:number, cardData:Object, _schemaVersion:number}} StudyData */
+/** Main data store — wraps localStorage/localForage with schema migrations, backups, and streak tracking */
 var Store = {
   _key: 'conjugate_study_data',
 
@@ -1302,9 +1285,12 @@ var Store = {
       flaggedQuestions: {}, // {questionId: "reason"}
       quizHistory: [],     // [{date, score, total, mode, section, timeSeconds}]
       studyStreak: { lastDate: null, current: 0, longest: 0 },
-      totalSessions: 0
+      totalSessions: 0,
+      cardData: {}          // {questionId: {due, stability, difficulty, reps, lastReview}}
     };
   },
+
+  _schemaVersion: 2,
 
   load: function() {
     var def = this._default();
@@ -1319,7 +1305,29 @@ var Store = {
         if (!(sk in parsed.studyStreak)) parsed.studyStreak[sk] = def.studyStreak[sk];
       }
     }
+    // Schema migrations
+    var v = parsed._schemaVersion || 1;
+    if (v < 2) {
+      if (!parsed.cardData) parsed.cardData = {};
+    }
+    if (v < this._schemaVersion) {
+      parsed._schemaVersion = this._schemaVersion;
+      this.save(parsed);
+    }
     return parsed;
+  },
+
+  restoreFromBackup: function() {
+    for (var i = 2; i >= 0; i--) {
+      var backup = readJSON('_backup_' + i, null);
+      if (backup && backup.quizHistory) {
+        this.save(backup);
+        showToast('Data restored from backup');
+        return true;
+      }
+    }
+    showToast('No backup found');
+    return false;
   },
 
   save: function(data) { writeJSON(this._key, data); },
@@ -1407,17 +1415,6 @@ var Store = {
 // =======================================
 // STATS BAR
 // =======================================
-/**
- * @description Refreshes the header stats display with the latest data from Store.
- *   Recalculates average score across all quiz history entries, shows or hides the
- *   Review Missed card based on whether any missed IDs exist, and delegates to
- *   updateWeakestSection() to show or hide the weak-section drill card.
- * @function
- * @sideeffects Updates textContent of #streakDisplay, #sessionsDisplay, #avgScoreDisplay;
- *   sets display style of #review-mode-btn and #missedCount; calls updateWeakestSection()
- * @interactions Reads Store.get() and Store.getMissedIds(); calls updateWeakestSection();
- *   called by Store.recordSession(), backToMenu(), showMode(null), and initApp()
- */
 function updateStatsBar() {
   var data = Store.get();
   document.getElementById('streakDisplay').textContent = data.studyStreak.current || 0;
@@ -1479,21 +1476,41 @@ function formatMMSS(sec) {
   return m + ':' + (s < 10 ? '0' : '') + s;
 }
 
+// In-memory cache for fast synchronous reads
+var _memCache = {};
+
 // Safe localStorage read with default
 function readJSON(key, fallback) {
-  try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+  if (key in _memCache) return _memCache[key];
+  try { var raw = localStorage.getItem(key); var val = raw ? JSON.parse(raw) : fallback; _memCache[key] = val; return val; }
   catch(e) { return fallback; }
 }
 
-// Safe localStorage write — warns user on quota errors
+// Safe write — localStorage + async localForage + rolling backup
+var _backupCounter = 0;
 function writeJSON(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+  _memCache[key] = value;
+  try { localStorage.setItem(key, JSON.stringify(value)); }
   catch(e) {
     if (e && (e.name === 'QuotaExceededError' || e.code === 22)) {
-      try { showToast('⚠️ Storage full — sync your data and clear old sessions'); } catch(_){}
+      try { showToast('Storage full — sync your data and clear old sessions'); } catch(_){}
     }
     return false;
   }
+  // Async persist to IndexedDB via localForage
+  if (typeof localforage !== 'undefined') {
+    localforage.setItem(key, value).catch(function() {});
+  }
+  // Rolling backup for main study data (rotate 3 copies)
+  if (key === 'conjugate_study_data') {
+    var backupKey = '_backup_' + (_backupCounter % 3);
+    _backupCounter++;
+    try { localStorage.setItem(backupKey, JSON.stringify(value)); } catch(_) {}
+    if (typeof localforage !== 'undefined') {
+      localforage.setItem(backupKey, value).catch(function() {});
+    }
+  }
+  return true;
 }
 
 // Unified clipboard copy with fallback
@@ -1522,6 +1539,8 @@ function shuffle(arr) {
 }
 
 function showMode(mode) {
+  if (typeof QZ !== 'undefined' && QZ.timer) { clearInterval(QZ.timer); QZ.timer = null; }
+  if (typeof RV !== 'undefined' && RV.timer) { clearInterval(RV.timer); RV.timer = null; }
   document.querySelectorAll('.mode-panel').forEach(function(p) { p.style.display = 'none'; });
   var sel = document.getElementById('mode-selector');
   var stats = document.getElementById('statsBar');
@@ -1559,31 +1578,54 @@ function flagBtnHTML(qid) {
 }
 
 // =======================================
+// MINIMAL SPACED REPETITION (SM-2 inspired)
+// =======================================
+/** Spaced repetition scheduler — tracks per-card difficulty/stability, returns cards due for review first */
+var SRS = {
+  newCard: function() {
+    return { due: Date.now(), stability: 1, difficulty: 5, reps: 0, lastReview: null };
+  },
+
+  review: function(card, correct) {
+    var now = Date.now();
+    var c = card ? JSON.parse(JSON.stringify(card)) : this.newCard();
+    c.reps++;
+    c.lastReview = now;
+    if (correct) {
+      c.difficulty = Math.max(1, c.difficulty - 0.5);
+      c.stability = Math.min(365, c.stability * (1.5 + (10 - c.difficulty) * 0.1));
+    } else {
+      c.difficulty = Math.min(10, c.difficulty + 1);
+      c.stability = Math.max(0.5, c.stability * 0.5);
+    }
+    c.due = now + c.stability * 86400000;
+    return c;
+  },
+
+  sortByDue: function(questions) {
+    var data = Store.get();
+    var cardData = data.cardData || {};
+    var now = Date.now();
+    var due = [], notDue = [], unseen = [];
+    questions.forEach(function(q) {
+      var c = cardData[q.id];
+      if (!c) { unseen.push(q); }
+      else if (c.due <= now) { due.push({ q: q, urgency: now - c.due }); }
+      else { notDue.push({ q: q, urgency: c.due - now }); }
+    });
+    due.sort(function(a, b) { return b.urgency - a.urgency; });
+    shuffle(unseen);
+    notDue.sort(function(a, b) { return a.urgency - b.urgency; });
+    return due.map(function(d) { return d.q; })
+      .concat(unseen)
+      .concat(notDue.map(function(d) { return d.q; }));
+  }
+};
+
+// =======================================
 // FLASHCARD MODE
 // =======================================
-/**
- * @description Flashcard flip-card study mode. Presents questions one at a time with a
- *   front (question + options) and back (answer + explanation). User self-marks each card
- *   as known or needing review, which writes to Store. Session ends with a results screen.
- * @namespace FC
- * @property {Array} deck - Shuffled array of question objects for the current session
- * @property {number} idx - Index of the currently displayed card in deck
- * @property {number} known - Running count of cards marked "Got It Right" this session
- * @property {number} review - Running count of cards marked "Got It Wrong" this session
- *
- * @property {function} start - Builds deck from QUESTIONS (excludes scenario type),
- *   optionally filtering by sectionFilter string; calls showMode('flashcard') and render()
- * @property {function} render - Renders current card HTML into #flashcard-panel,
- *   or calls resultsHTML() and records session if deck is exhausted
- * @property {function} flip - Toggles the 'flipped' CSS class on #fcCard
- * @property {function} mark - Records known/review, calls Store.recordCorrect/recordMiss,
- *   advances idx, re-renders; guards against rapid double-tap past end of deck
- * @property {function} resultsHTML - Returns HTML string for the session summary screen
- *
- * @interactions Reads QUESTIONS (filtered), SECTIONS; writes Store via recordMiss,
- *   recordCorrect, recordSession
- * @sideeffects DOM root: #flashcard-panel
- */
+/** Flashcard study mode — SRS-sorted deck, flip-to-reveal, tracks known/review counts */
 var FC = {
   deck: [],
   idx: 0,
@@ -1595,7 +1637,7 @@ var FC = {
     if (sectionFilter && sectionFilter !== 'all') {
       pool = pool.filter(function(q) { return q.s === parseInt(sectionFilter); });
     }
-    this.deck = shuffle(pool.slice());
+    this.deck = SRS.sortByDue(pool.slice());
     this.idx = 0;
     this.known = 0;
     this.review = 0;
@@ -1669,14 +1711,19 @@ var FC = {
 
   mark: function(type) {
     var q = this.deck[this.idx];
-    if (!q) return;          // guard against rapid double-tap past end of deck
-    if (type === 'known') {
+    if (!q) return;
+    var correct = type === 'known';
+    if (correct) {
       this.known++;
       Store.recordCorrect(q.id);
     } else {
       this.review++;
       Store.recordMiss(q.id);
     }
+    var data = Store.get();
+    if (!data.cardData) data.cardData = {};
+    data.cardData[q.id] = SRS.review(data.cardData[q.id], correct);
+    Store.save(data);
     this.idx++;
     this.render();
   },
@@ -1695,6 +1742,7 @@ var FC = {
         '<p><strong>' + this.review + '</strong> cards missed — these will show up in Review Missed.</p>' +
         '<div class="fc-results-actions">' +
           '<button class="btn btn-primary" onclick="FC.start(\'all\')">Shuffle All Again</button>' +
+          '<button class="btn" onclick="shareResults(\'Flashcard Results\', \'Conjugate Method Flashcards: ' + this.known + '/' + total + ' (' + pct + '%) cards right!\')">Share Results</button>' +
           '<button class="btn" onclick="backToMenu()">Back to Menu</button>' +
         '</div>' +
       '</div>';
@@ -1704,45 +1752,7 @@ var FC = {
 // =======================================
 // QUICK QUIZ MODE
 // =======================================
-/**
- * @description Customizable quiz builder with multi-filter question selection. Presents
- *   a setup screen where the user picks sections (chips), focus type (all/missed/flagged),
- *   and question count, then runs a timed multiple-choice quiz with instant feedback.
- * @namespace QZ
- * @property {Array} questions - Filtered question pool for the active quiz
- * @property {number} current - Index of the current question being displayed
- * @property {number} score - Running count of correct answers
- * @property {number} answered - Total questions answered so far
- * @property {?number} timer - setInterval handle for the countdown timer (null when idle)
- * @property {number} seconds - Elapsed seconds for the current quiz session
- * @property {?number} _section - Section ID when launched via beginWeak(); null otherwise
- *
- * @property {function} setup - Renders the quiz builder UI into #quiz-panel with section
- *   chips, focus selector, count slider, and pool info
- * @property {function} toggleSection - Toggles a section chip's active state and updates pool info
- * @property {function} selectFocus - Activates a focus button (all/missed/flagged) and updates pool info
- * @property {function} updateCount - Updates the question count from the range slider
- * @property {function} getSelectedSections - Returns array of selected section IDs (or null for all)
- * @property {function} getSelectedFocus - Returns active focus string ('all'|'missed'|'flagged')
- * @property {function} getFilteredPool - Builds the filtered question pool from current UI state
- * @property {function} updatePoolInfo - Refreshes the "N questions available" helper text
- * @property {function} begin - Starts the quiz with current filter settings
- * @property {function} startTimer - Initializes and starts the elapsed-time interval
- * @property {function} renderQuestion - Renders the current question into #quiz-panel
- * @property {function} answer - Handles answer button click; records miss/correct, shows feedback
- * @property {function} next - Advances to next question or shows results
- * @property {function} quit - Abandons quiz mid-session and returns to menu
- * @property {function} beginWeak - Entry point called by updateWeakestSection() to drill
- *   the weakest section directly; sets _section and calls begin()
- * @property {function} resultsHTML - Returns HTML string for the quiz results screen;
- *   fires confetti on score >= 80%
- *
- * @interactions Reads QUESTIONS, SECTIONS, SECTION_COLORS; reads Store (missed/flagged IDs);
- *   writes Store via recordMiss, recordCorrect, recordSession
- * @sideeffects DOM root: #quiz-panel
- * @limitations Timer interval is not cleared if the user navigates away without using the
- *   Back button; mitigated by backToMenu() which clears QZ.timer explicitly
- */
+/** Custom quiz builder — filter by section/type/count, timed, with scoring and results */
 var QZ = {
   questions: [],
   current: 0,
@@ -2099,6 +2109,7 @@ var QZ = {
         '<p class="grade-text">' + grade + '</p>' +
         '<div class="fc-results-actions">' +
           '<button class="btn btn-primary" onclick="QZ.setup()">New Quiz</button>' +
+          '<button class="btn" onclick="shareResults(\'Quiz Results\', \'Conjugate Method Quiz: ' + this.score + '/' + total + ' (' + pct + '%) in ' + timeStr + '!\')">Share Results</button>' +
           '<button class="btn" onclick="backToMenu()">Back to Menu</button>' +
         '</div>' +
       '</div>';
@@ -2108,31 +2119,7 @@ var QZ = {
 // =======================================
 // FULL TEST MODE (105 questions, graded)
 // =======================================
-/**
- * @description Full 105-question practice test organized by section. All questions are
- *   rendered at once as cards so the user can work through them at their own pace, then
- *   submit for grading. Scenario questions are shown with a textarea and auto-marked as
- *   "skipped" — they are not auto-graded.
- * @namespace FT
- * @property {Array} questions - Shuffled copy of all QUESTIONS for the current test attempt
- * @property {boolean} _scoring - Guard flag set to true during score() to prevent double-submit
- *
- * @property {function} start - Resets state, shuffles all QUESTIONS, calls showMode('test')
- *   and render()
- * @property {function} render - Builds the full test HTML (all question cards) into #test-panel
- * @property {function} renderCard - Returns HTML string for a single question card given
- *   the question object and its 1-based display number
- * @property {function} gradeCard - Evaluates a single rendered card DOM element against the
- *   correct answer; returns {correct: boolean, skipped: boolean}
- * @property {function} score - Iterates all cards, grades each, tallies score, calls
- *   Store.recordSession(), then calls showAnswers()
- * @property {function} showAnswers - Reveals correct/incorrect state on all cards after grading
- * @property {function} reset - Clears grading state and re-renders a fresh test
- * @property {function} clearGrading - Removes all grading CSS classes from rendered cards
- *
- * @interactions Reads QUESTIONS, SECTIONS; writes Store via recordSession
- * @sideeffects DOM root: #test-panel
- */
+/** Full practice test — all questions, auto-graded with per-question feedback and score breakdown */
 var FT = {
   questions: [],
 
@@ -2425,31 +2412,7 @@ var FT = {
 // =======================================
 // REVIEW MISSED MODE
 // =======================================
-/**
- * @description Review mode for previously missed questions only. Builds a pool from
- *   Store.getMissedIds(), excludes scenario questions (not auto-gradeable), then runs
- *   a standard multiple-choice quiz loop identical in structure to QZ but without the
- *   setup screen or timer.
- * @namespace RV
- * @property {Array} questions - Pool of missed questions for the current review session
- * @property {number} current - Index of the current question being displayed
- * @property {number} score - Running count of correct answers this session
- * @property {number} answered - Total questions answered so far
- *
- * @property {function} start - Fetches missed IDs from Store, maps to QUESTIONS objects,
- *   filters out scenarios and orphaned IDs, shuffles, calls showMode('review')
- * @property {function} renderQuestion - Renders the current question into #review-panel
- * @property {function} answer - Handles answer selection; records miss/correct in Store,
- *   shows feedback overlay
- * @property {function} next - Advances to next question or calls resultsHTML()
- * @property {function} resultsHTML - Returns HTML string for review session summary screen
- *
- * @interactions Reads Store.getMissedIds(); reads QUESTIONS (filtered); writes Store via
- *   recordMiss, recordCorrect, recordSession
- * @sideeffects DOM root: #review-panel
- * @limitations Orphaned question IDs (IDs that no longer exist in QUESTIONS) are silently
- *   skipped. Scenario questions are excluded — missed scenarios never appear in review.
- */
+/** Review mode — drills only previously-missed questions, removes from missed list on correct answer */
 var RV = {
   questions: [],
   current: 0,
@@ -2575,6 +2538,7 @@ var RV = {
         '<p class="grade-text">' + (remaining > 0 ? remaining + ' questions still in your review list.' : 'Review list cleared! Great work.') + '</p>' +
         '<div class="fc-results-actions">' +
           (remaining > 0 ? '<button class="btn btn-primary" onclick="RV.start()">Review Again</button>' : '') +
+          '<button class="btn" onclick="shareResults(\'Review Results\', \'Conjugate Method Review: ' + this.score + '/' + total + ' (' + pct + '%) correct!\')">Share Results</button>' +
           '<button class="btn" onclick="backToMenu()">Back to Menu</button>' +
         '</div>' +
       '</div>';
@@ -2584,35 +2548,7 @@ var RV = {
 // =======================================
 // PERFORMANCE DASHBOARD
 // =======================================
-/**
- * @description Performance analytics dashboard. Reads all Store data and renders a
- *   comprehensive stats view including progress rings, trend charts, section breakdown,
- *   activity heatmap, recent sessions table, earned badges, and static educational diagrams.
- * @namespace DASH
- *
- * @property {function} start - Entry point; calls showMode('dash') and renders full
- *   dashboard HTML into #dash-panel using all sub-render methods
- * @property {function} progressRingSVG - Returns an SVG string for a circular progress
- *   ring; params: pct (0-100), size (px)
- * @property {function} trendChartSVG - Returns an SVG string of a line chart showing
- *   score trend over recent quiz history entries
- * @property {function} sectionBreakdownHTML - Returns HTML string of per-section accuracy
- *   bars derived from quiz history
- * @property {function} heatmapSVG - Returns an SVG string showing a GitHub-style activity
- *   heatmap of study days over the last 12 weeks
- * @property {function} recentSessionsHTML - Returns HTML string of a table listing the
- *   last N quiz/test/flashcard sessions with date, mode, and score
- * @property {function} badgesHTML - Returns HTML string of all badge cards, highlighting
- *   earned ones; calls getEarnedBadges()
- * @property {function} diagramsHTML - Returns HTML string embedding the three static
- *   educational SVG diagrams (week template, Prilepin's table, force-velocity curve)
- *
- * @interactions Reads Store.get() for all stats; calls Store.getFlaggedCount() for flagged
- *   question count; calls getEarnedBadges() for badge display
- * @sideeffects DOM root: #dash-panel
- * @limitations All diagrams (weekTemplateSVG, prilepinSVG, forceVelocitySVG) are static
- *   educational SVGs — they are not data-driven and do not reflect user performance
- */
+/** Dashboard — Chart.js trend/section charts, CSS Grid heatmap, badges, recent sessions, study diagrams */
 var DASH = {
   start: function() {
     showMode('dash');
@@ -2641,8 +2577,8 @@ var DASH = {
     var streak = data.studyStreak.current || 0;
     var longest = data.studyStreak.longest || 0;
     var allScores = history.map(function(h) { return h.total > 0 ? Math.round((h.score / h.total) * 100) : 0; });
-    var avg = Math.round(allScores.reduce(function(a,b){return a+b;},0) / allScores.length);
-    var best = Math.max.apply(null, allScores);
+    var avg = allScores.length ? Math.round(allScores.reduce(function(a,b){return a+b;},0) / allScores.length) : 0;
+    var best = allScores.length ? Math.max.apply(null, allScores) : 0;
     var flagged = Store.getFlaggedCount();
 
     html += '<div class="dash-grid">';
@@ -2663,7 +2599,7 @@ var DASH = {
     // Score trend chart
     html += '<div class="dash-card">' +
       '<h3>&#x1F4C8; Score Trend</h3>' +
-      '<div class="dash-chart-container">' + this.trendChartSVG(history) + '</div>' +
+      '<div class="dash-chart-container"><canvas id="dashTrendChart"></canvas></div>' +
     '</div>';
 
     html += '</div>'; // close dash-grid
@@ -2677,13 +2613,13 @@ var DASH = {
     // Section breakdown
     html += '<div class="dash-card" style="margin-bottom:1.25rem">' +
       '<h3>&#x1F4CA; Section Performance</h3>' +
-      this.sectionBreakdownHTML(history) +
+      '<div class="dash-chart-container"><canvas id="dashSectionChart"></canvas></div>' +
     '</div>';
 
     // Activity heatmap
     html += '<div class="dash-card" style="margin-bottom:1.25rem">' +
       '<h3>&#x1F5D3;&#xFE0F; Study Activity (Last 8 Weeks)</h3>' +
-      '<div class="dash-chart-container">' + this.heatmapSVG(history) + '</div>' +
+      '<div class="dash-chart-container">' + this.heatmapHTML(history) + '</div>' +
     '</div>';
 
     // Recent sessions
@@ -2696,6 +2632,7 @@ var DASH = {
     html += this.diagramsHTML();
 
     panel.innerHTML = html;
+    this.initCharts(history);
   },
 
   progressRingSVG: function(pct, size) {
@@ -2717,145 +2654,150 @@ var DASH = {
     '</svg>';
   },
 
-  trendChartSVG: function(history) {
-    var recent = history.slice(-20);
-    if (recent.length < 2) return '<div class="dash-empty">Need at least 2 sessions to show trend</div>';
+  _trendChart: null,
+  _sectionChart: null,
 
-    var w = 500, h = 180, pad = 40, padR = 20, padT = 20;
-    var points = recent.map(function(s) { return s.total > 0 ? Math.round((s.score / s.total) * 100) : 0; });
-    var n = points.length;
-    var xStep = (w - pad - padR) / (n - 1);
+  initCharts: function(history) {
+    if (typeof Chart === 'undefined') return;
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var textColor = isDark ? '#ccc' : '#555';
+    var gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
 
-    // Y scale: 0-100
-    var coords = points.map(function(p, i) {
-      return { x: pad + i * xStep, y: padT + (1 - p / 100) * (h - padT - pad) };
-    });
+    // Trend chart
+    var trendCanvas = document.getElementById('dashTrendChart');
+    if (trendCanvas && history.length >= 2) {
+      if (this._trendChart) { this._trendChart.destroy(); this._trendChart = null; }
+      var recent = history.slice(-20);
+      var labels = recent.map(function(s, i) { return '#' + (i + 1); });
+      var scores = recent.map(function(s) { return s.total > 0 ? Math.round((s.score / s.total) * 100) : 0; });
+      var pointColors = scores.map(function(s) { return s >= 70 ? '#4caf50' : s >= 50 ? '#ff9800' : '#c4322e'; });
 
-    // Build path
-    var pathD = coords.map(function(c, i) { return (i === 0 ? 'M' : 'L') + c.x + ',' + c.y; }).join(' ');
-
-    // Gradient area
-    var areaD = pathD + ' L' + coords[n-1].x + ',' + (h - pad) + ' L' + coords[0].x + ',' + (h - pad) + ' Z';
-
-    var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet">';
-    svg += '<defs><linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0%" stop-color="var(--accent)" stop-opacity="0.3"/>' +
-      '<stop offset="100%" stop-color="var(--accent)" stop-opacity="0.02"/>' +
-    '</linearGradient></defs>';
-
-    // Grid lines and labels
-    [0, 25, 50, 75, 100].forEach(function(v) {
-      var y = padT + (1 - v / 100) * (h - padT - pad);
-      svg += '<line x1="' + pad + '" y1="' + y + '" x2="' + (w - padR) + '" y2="' + y + '" stroke="var(--border)" stroke-width="0.5"/>';
-      svg += '<text x="' + (pad - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-size="10" fill="var(--text-muted)">' + v + '</text>';
-    });
-
-    // 70% passing line
-    var passY = padT + (1 - 70 / 100) * (h - padT - pad);
-    svg += '<line x1="' + pad + '" y1="' + passY + '" x2="' + (w - padR) + '" y2="' + passY + '" stroke="var(--correct)" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>';
-    svg += '<text x="' + (w - padR + 2) + '" y="' + (passY + 3) + '" font-size="8" fill="var(--correct)">Pass</text>';
-
-    // Area fill and line
-    svg += '<path d="' + areaD + '" fill="url(#trendGrad)"/>';
-    svg += '<path d="' + pathD + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
-
-    // Data points
-    coords.forEach(function(c, i) {
-      var color = points[i] >= 70 ? 'var(--correct)' : points[i] >= 50 ? '#ff9800' : 'var(--incorrect)';
-      svg += '<circle cx="' + c.x + '" cy="' + c.y + '" r="4" fill="' + color + '" stroke="var(--card)" stroke-width="2"/>';
-    });
-
-    svg += '</svg>';
-    return svg;
-  },
-
-  sectionBreakdownHTML: function(history) {
-    // Use the real per-question miss data: a section's "health" = % of its questions never missed
-    var data = Store.get();
-    var missed = data.missedQuestions || {};
-    var sectionData = {};
-    for (var s in SECTIONS) {
-      sectionData[s] = { name: SECTIONS[s], total: 0, untouched: 0 };
+      this._trendChart = new Chart(trendCanvas, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Score %',
+            data: scores,
+            borderColor: '#c4322e',
+            backgroundColor: 'rgba(196,50,46,0.1)',
+            pointBackgroundColor: pointColors,
+            pointBorderColor: pointColors,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            annotation: undefined
+          },
+          scales: {
+            y: { min: 0, max: 100, ticks: { color: textColor, stepSize: 25, callback: function(v) { return v + '%'; } }, grid: { color: gridColor } },
+            x: { ticks: { color: textColor }, grid: { display: false } }
+          }
+        },
+        plugins: [{
+          id: 'passingLine',
+          beforeDraw: function(chart) {
+            var yScale = chart.scales.y;
+            var ctx = chart.ctx;
+            var y = yScale.getPixelForValue(70);
+            ctx.save();
+            ctx.strokeStyle = '#4caf50';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([6, 4]);
+            ctx.globalAlpha = 0.6;
+            ctx.beginPath();
+            ctx.moveTo(chart.chartArea.left, y);
+            ctx.lineTo(chart.chartArea.right, y);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }]
+      });
     }
-    QUESTIONS.forEach(function(q) {
-      if (!sectionData[q.s]) return;
-      sectionData[q.s].total++;
-      if (!missed[q.id]) sectionData[q.s].untouched++;
-    });
 
-    var html = '';
-    for (var sec in SECTIONS) {
-      var sd = sectionData[sec];
-      var secColor = SECTION_COLORS[sec] || 'var(--accent)';
-      if (!sd || sd.total === 0) {
-        html += '<div class="dash-section-bar">' +
-          '<div class="dash-section-label"><span style="color:' + secColor + '">' + SECTIONS[sec] + '</span><span style="color:var(--text-muted)">No data</span></div>' +
-          '<div class="dash-section-track"><div class="dash-section-fill" style="width:0;background:' + secColor + '"></div></div>' +
-        '</div>';
-      } else {
-        var pct = Math.round((sd.untouched / sd.total) * 100);
-        var barColor = pct >= 70 ? 'var(--correct)' : pct >= 50 ? '#ff9800' : 'var(--incorrect)';
-        var label = (sd.total - sd.untouched) + ' / ' + sd.total + ' missed';
-        html += '<div class="dash-section-bar">' +
-          '<div class="dash-section-label"><span style="color:' + secColor + '">' + SECTIONS[sec] + '</span><span style="font-weight:600;color:' + barColor + '">' + label + '</span></div>' +
-          '<div class="dash-section-track"><div class="dash-section-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>' +
-        '</div>';
+    // Section breakdown chart
+    var secCanvas = document.getElementById('dashSectionChart');
+    if (secCanvas) {
+      if (this._sectionChart) { this._sectionChart.destroy(); this._sectionChart = null; }
+      var data = Store.get();
+      var missed = data.missedQuestions || {};
+      var secLabels = [], secPcts = [], secColors = [];
+      for (var s in SECTIONS) {
+        var total = 0, untouched = 0;
+        QUESTIONS.forEach(function(q) { if (q.s == s) { total++; if (!missed[q.id]) untouched++; } });
+        var pct = total > 0 ? Math.round((untouched / total) * 100) : 0;
+        secLabels.push(SECTIONS[s].length > 18 ? SECTIONS[s].substring(0, 16) + '...' : SECTIONS[s]);
+        secPcts.push(pct);
+        secColors.push(SECTION_COLORS[s] || '#c4322e');
       }
+
+      this._sectionChart = new Chart(secCanvas, {
+        type: 'bar',
+        data: {
+          labels: secLabels,
+          datasets: [{
+            label: 'Mastery %',
+            data: secPcts,
+            backgroundColor: secColors.map(function(c) { return c + 'cc'; }),
+            borderColor: secColors,
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { min: 0, max: 100, ticks: { color: textColor, callback: function(v) { return v + '%'; } }, grid: { color: gridColor } },
+            y: { ticks: { color: textColor, font: { size: 11 } }, grid: { display: false } }
+          }
+        }
+      });
     }
-    return html;
   },
 
-  heatmapSVG: function(history) {
-    var w = 500, h = 100;
+  heatmapHTML: function(history) {
     var today = new Date();
     var dayMs = 86400000;
     var weeks = 8;
     var days = weeks * 7;
-    var cellSize = 12, gap = 3;
 
-    // Count sessions per day (local time, to match streak calculation)
     var dayCounts = {};
     history.forEach(function(s) {
       var d = localDateStr(new Date(s.date));
       dayCounts[d] = (dayCounts[d] || 0) + 1;
     });
-
-    // Object.values not available on iOS < 10.3 — use Object.keys/map instead
     var counts = Object.keys(dayCounts).map(function(k) { return dayCounts[k]; });
     var maxCount = Math.max(1, counts.length ? Math.max.apply(null, counts) : 1);
-    var dayLabels = ['','M','','W','','F',''];
 
-    var svg = '<svg viewBox="0 0 ' + (weeks * (cellSize + gap) + 30) + ' ' + (7 * (cellSize + gap) + 20) + '" preserveAspectRatio="xMidYMid meet">';
-
-    // Day labels
-    dayLabels.forEach(function(label, i) {
-      if (label) {
-        svg += '<text x="0" y="' + (18 + i * (cellSize + gap) + cellSize / 2 + 3) + '" font-size="9" fill="var(--text-muted)">' + label + '</text>';
-      }
-    });
-
-    // Draw cells
     var startDate = new Date(today.getTime() - (days - 1) * dayMs);
-    // Adjust to start on Sunday
     startDate.setDate(startDate.getDate() - startDate.getDay());
 
-    for (var week = 0; week < weeks; week++) {
-      for (var day = 0; day < 7; day++) {
+    var html = '<div style="display:grid;grid-template-columns:20px repeat(' + weeks + ',1fr);gap:3px;max-width:400px;margin:0 auto">';
+    var dayLabels = ['','M','','W','','F',''];
+    for (var day = 0; day < 7; day++) {
+      html += '<div style="font-size:0.65rem;color:var(--text-muted);display:flex;align-items:center;justify-content:center">' + dayLabels[day] + '</div>';
+      for (var week = 0; week < weeks; week++) {
         var date = new Date(startDate.getTime() + (week * 7 + day) * dayMs);
-        if (date > today) continue;
         var dateStr = localDateStr(date);
         var count = dayCounts[dateStr] || 0;
-        var intensity = count > 0 ? 0.25 + 0.75 * (count / maxCount) : 0;
-        var fill = count > 0 ? 'var(--accent)' : 'var(--border)';
-        var opacity = count > 0 ? intensity : 0.4;
-        var x = 18 + week * (cellSize + gap);
-        var y = 18 + day * (cellSize + gap);
-        svg += '<rect x="' + x + '" y="' + y + '" width="' + cellSize + '" height="' + cellSize + '" rx="2" fill="' + fill + '" opacity="' + opacity + '"/>';
+        var opacity = date > today ? '0' : count > 0 ? (0.3 + 0.7 * (count / maxCount)).toFixed(2) : '0.15';
+        var bg = count > 0 ? 'var(--accent)' : 'var(--border)';
+        var title = dateStr + ': ' + count + ' session' + (count !== 1 ? 's' : '');
+        html += '<div title="' + title + '" style="aspect-ratio:1;border-radius:3px;background:' + bg + ';opacity:' + opacity + '"></div>';
       }
     }
-
-    svg += '</svg>';
-    return svg;
+    html += '</div>';
+    return html;
   },
 
   recentSessionsHTML: function(history) {
@@ -3082,27 +3024,7 @@ var DASH = {
 // =======================================
 // SURVEY / FEEDBACK
 // =======================================
-/**
- * @description User feedback and survey collection module. Renders a feedback form,
- *   persists submissions to a separate localStorage key, displays submission history,
- *   and generates a pre-filled GitHub issue URL for easy bug reporting.
- * @namespace SV
- * @property {string} feedbackKey - localStorage key: 'conjugate_feedback_log'
- *
- * @property {function} start - Calls showMode('survey') and renders the feedback form
- *   and history into #survey-panel
- * @property {function} submit - Reads form values, appends a new entry to the feedback
- *   log in localStorage, shows a confirmation toast, and re-renders
- * @property {function} renderHistory - Reads and parses the feedback log, returns HTML
- *   string listing past submissions with timestamps and GitHub issue links
- *
- * @interactions Storage is 'conjugate_feedback_log' — entirely separate from the main
- *   Store ('conjugate_study_data'). Feedback is NOT included in SYNC export/import.
- * @sideeffects DOM root: #survey-panel
- * @limitations Feedback log grows unbounded — no trim is applied on submit.
- * @known_bug JSON.parse in renderHistory is not wrapped in try/catch; a corrupted
- *   feedback log entry will throw and crash the renderHistory call
- */
+/** Feedback survey — collects user feedback by topic, opens GitHub issue, stores locally */
 var SV = {
   feedbackKey: 'conjugate_feedback_log',
 
@@ -3159,14 +3081,14 @@ var SV = {
     }
 
     // Save locally
-    var log = JSON.parse(localStorage.getItem(this.feedbackKey) || '[]');
+    var log = readJSON(this.feedbackKey, []);
     var entry = {
       date: new Date().toISOString(),
       topic: topic,
       message: message
     };
     log.push(entry);
-    localStorage.setItem(this.feedbackKey, JSON.stringify(log));
+    writeJSON(this.feedbackKey, log);
 
     // Try to open a pre-filled GitHub issue
     var topicLabels = {
@@ -3205,7 +3127,7 @@ var SV = {
   renderHistory: function() {
     var container = document.getElementById('svHistory');
     if (!container) return;
-    var log = JSON.parse(localStorage.getItem(this.feedbackKey) || '[]');
+    var log = readJSON(this.feedbackKey, []);
     if (log.length === 0) { container.innerHTML = ''; return; }
 
     var html = '<h3 style="font-size:0.95rem;margin-bottom:0.5rem;color:var(--text-muted)">Your previous feedback</h3>';
@@ -3215,8 +3137,8 @@ var SV = {
       var dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
       html += '<div style="padding:0.6rem 0;border-top:1px solid var(--border);font-size:0.9rem">' +
         '<span style="color:var(--text-muted)">' + dateStr + '</span> &mdash; ' +
-        '<strong>' + entry.topic + '</strong><br>' +
-        '<span>' + entry.message.substring(0, 120) + (entry.message.length > 120 ? '...' : '') + '</span>' +
+        '<strong>' + esc(entry.topic) + '</strong><br>' +
+        '<span>' + esc(entry.message.substring(0, 120)) + (entry.message.length > 120 ? '...' : '') + '</span>' +
       '</div>';
     });
     container.innerHTML = html;
@@ -3226,39 +3148,7 @@ var SV = {
 // =======================================
 // WIP LAB
 // =======================================
-/**
- * @description Advanced WIP tool suite with audit logging. Presents five tool cards
- *   (scenario, rotation, template, meetprep, percentcalc) that currently render wireframe
- *   SVG placeholders — no interactive calculator logic is implemented yet. Tracks user
- *   interactions via a structured audit log and supports Google OAuth identity (stubbed).
- * @namespace LAB
- * @property {Array} tools - Array of tool definition objects: { id, name, icon, desc }
- * @property {string} GOOGLE_CLIENT_ID - OAuth client ID; currently empty string —
- *   Google Sign-In shows "coming soon" placeholder
- *
- * @property {function} start - Entry point; logs 'open_lab' audit action, calls
- *   showMode('lab'), renders tool cards into #lab-panel
- * @property {function} renderToolCard - Returns HTML string for a single tool card
- * @property {function} expandTool - Expands a tool card to show wireframe SVG and
- *   feedback controls; logs 'view_tool' audit action
- * @property {function} wireframeSVG - Returns a static wireframe SVG string for a given
- *   tool ID (all five tools have distinct placeholder layouts)
- * @property {function} saveRank - Persists user's 1-5 star ranking for a tool; logs
- *   'set_rank' audit action
- * @property {function} submitToolFeedback - Saves freeform tool feedback text; logs
- *   'submit_feedback' audit action
- * @property {function} submitIdea - Saves a new feature idea; logs 'submit_idea' audit action
- * @property {function} leaveLab - Logs 'time_in_lab' duration audit action, returns to menu
- * @property {function} getAuditSummary - Returns a summary object of audit log counts by action
- * @property {function} exportLabData - Serializes lab data + audit log to JSON and triggers download
- *
- * @interactions Storage keys: 'conjugate_lab_data' (ranks/feedback/ideas),
- *   'conjugate_lab_audit' (audit log), 'conjugate_google_user' (OAuth identity).
- *   Lab data IS included in SYNC export via SYNC.getAllData().
- * @sideeffects DOM root: #lab-panel
- * @limitations All five tools are wireframe SVGs with no interactive logic yet.
- *   Google OAuth flow shows "coming soon" — GOOGLE_CLIENT_ID is an empty string.
- */
+/** WIP Lab — 5 experimental coaching tools with star ratings, usage audit log, and idea submission */
 var LAB = {
   tools: [
     { id: 'scenario', name: 'Scenario Simulator', icon: '🎯', desc: 'Walk through coaching scenarios — athlete profiles, weak points, exercise selection decisions.' },
@@ -3273,8 +3163,23 @@ var LAB = {
   _labKey: 'conjugate_lab_data',
   _auditKey: 'conjugate_lab_audit',
   _googleKey: 'conjugate_google_user',
+  _clientIdKey: 'conjugate_google_client_id',
   _enterTime: null,
   _expandedTool: null,
+
+  // ── Firebase email magic-link auth ─────────────────────────────────────────
+  _FIREBASE_CONFIG: {
+    apiKey:            'AIzaSyAcoEy2nUPxeq76lS0VhNmZiI4M0wiU0Fw',
+    authDomain:        'conjugate-method-study.firebaseapp.com',
+    projectId:         'conjugate-method-study',
+    storageBucket:     'conjugate-method-study.firebasestorage.app',
+    messagingSenderId: '192829169743',
+    appId:             '1:192829169743:web:3faaf7e2e384349dfcca3a'
+  },
+  _firebaseEmailKey: 'conjugate_email_for_signin',
+  _firebaseApp:  null,
+  _firebaseAuth: null,
+  _firebaseUser: null,
 
   getLabData: function() {
     try {
@@ -3285,7 +3190,7 @@ var LAB = {
   },
 
   saveLabData: function(data) {
-    try { localStorage.setItem(this._labKey, JSON.stringify(data)); } catch(e) {}
+    writeJSON(this._labKey, data);
   },
 
   getAuditLog: function() {
@@ -3304,7 +3209,7 @@ var LAB = {
       if (extra) entry.extra = extra;
       log.push(entry);
       if (log.length > 500) log = log.slice(-500);
-      localStorage.setItem(this._auditKey, JSON.stringify(log));
+      writeJSON(this._auditKey, log);
     } catch(e) {}
   },
 
@@ -3315,8 +3220,6 @@ var LAB = {
     } catch(e) {}
     return null;
   },
-
-  _clientIdKey: 'conjugate_google_client_id',
 
   getClientId: function() {
     return localStorage.getItem(this._clientIdKey) || this.GOOGLE_CLIENT_ID || '';
@@ -3330,6 +3233,24 @@ var LAB = {
     localStorage.setItem(this._clientIdKey, val);
     showToast('Client ID saved — initializing Google Sign-In…');
     this.renderAuthBar();
+  },
+
+  clearClientId: function() {
+    localStorage.removeItem(this._clientIdKey);
+    this.renderAuthBar();
+    showToast('Google Client ID removed');
+  },
+
+  _clientIdSetupHTML: function() {
+    return '<details style="font-size:0.8rem;color:var(--text-muted)">' +
+      '<summary style="cursor:pointer;user-select:none">🔑 Set up Google Sign-In</summary>' +
+      '<div style="margin-top:0.5rem;padding:0.75rem;background:var(--neutral-bg);border-radius:8px">' +
+        '<p style="margin:0 0 0.5rem">Paste your <strong>OAuth 2.0 Client ID</strong> from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style="color:var(--accent)">Google Cloud Console</a>.</p>' +
+        '<p style="margin:0 0 0.5rem;font-size:0.75rem;color:var(--text-muted)">Add <code>' + (location.origin || 'http://localhost:3000') + '</code> to Authorized JavaScript origins.</p>' +
+        '<input id="labGoogleClientId" type="text" placeholder="123456789.apps.googleusercontent.com" style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;background:var(--input-bg);color:var(--text);box-sizing:border-box;margin-bottom:0.5rem">' +
+        '<button onclick="LAB.saveClientId()" style="padding:0.35rem 0.8rem;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem">Save &amp; Enable</button>' +
+      '</div>' +
+    '</details>';
   },
 
   initGoogleAuth: function(container) {
@@ -3358,18 +3279,6 @@ var LAB = {
     }
   },
 
-  _clientIdSetupHTML: function() {
-    return '<details style="font-size:0.8rem;color:var(--text-muted)">' +
-      '<summary style="cursor:pointer;user-select:none">🔑 Set up Google Sign-In</summary>' +
-      '<div style="margin-top:0.5rem;padding:0.75rem;background:var(--neutral-bg);border-radius:8px">' +
-        '<p style="margin:0 0 0.5rem">Paste your <strong>OAuth 2.0 Client ID</strong> from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style="color:var(--accent)">Google Cloud Console</a>.</p>' +
-        '<p style="margin:0 0 0.5rem;font-size:0.75rem;color:var(--text-muted)">Add <code>' + (location.origin || 'http://localhost:3000') + '</code> to Authorized JavaScript origins.</p>' +
-        '<input id="labGoogleClientId" type="text" placeholder="123456789.apps.googleusercontent.com" style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;background:var(--input-bg);color:var(--text);box-sizing:border-box;margin-bottom:0.5rem">' +
-        '<button onclick="LAB.saveClientId()" style="padding:0.35rem 0.8rem;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem">Save &amp; Enable</button>' +
-      '</div>' +
-    '</details>';
-  },
-
   handleCredentialResponse: function(response) {
     try {
       var b64 = response.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -3389,26 +3298,6 @@ var LAB = {
     this.renderAuthBar();
     showToast('Signed out');
   },
-
-  clearClientId: function() {
-    localStorage.removeItem(this._clientIdKey);
-    this.renderAuthBar();
-    showToast('Google Client ID removed');
-  },
-
-  // ── Firebase email magic-link auth ─────────────────────────────────────────
-  _FIREBASE_CONFIG: {
-    apiKey:            'AIzaSyAcoEy2nUPxeq76lS0VhNmZiI4M0wiU0Fw',
-    authDomain:        'conjugate-method-study.firebaseapp.com',
-    projectId:         'conjugate-method-study',
-    storageBucket:     'conjugate-method-study.firebasestorage.app',
-    messagingSenderId: '192829169743',
-    appId:             '1:192829169743:web:3faaf7e2e384349dfcca3a'
-  },
-  _firebaseEmailKey: 'conjugate_email_for_signin',
-  _firebaseApp:  null,
-  _firebaseAuth: null,
-  _firebaseUser: null,
 
   initFirebase: function() {
     if (typeof firebase === 'undefined') return false;
@@ -3912,49 +3801,7 @@ var LAB = {
 // =======================================
 // SYNC (cross-device via shareable link)
 // =======================================
-/**
- * @description Cross-device data synchronization via base64-encoded JSON codes and links.
- *   Exports all app data (study data + lab data + audit log + user identity) as a compact
- *   string that can be shared as a URL parameter or a copyable code. Import is fully
- *   destructive — it completely replaces local data with no merge.
- * @namespace SYNC
- * @property {string} _userKey - localStorage key for user identity: 'conjugate_sync_user'
- *
- * @property {function} getUser - Returns parsed user identity object from localStorage,
- *   or null if not set
- * @property {function} setUser - Persists a user identity object (name) to localStorage
- * @property {function} clearUser - Removes user identity from localStorage
- * @property {function} getAllData - Assembles full export payload: study data, lab data,
- *   audit log, survey feedback log (sv), user identity, and syncVersion: 3
- * @property {function} importAllData - Destructively replaces all local data from a
- *   parsed payload object; rejects payload if syncVersion < 2; restores sv feedback if present
- * @property {function} encode - Serializes an object to emoji-safe base64:
- *   JSON → encodeURIComponent → btoa
- * @property {function} decode - Reverses encode: atob → decodeURIComponent → JSON.parse
- * @property {function} generateSyncLink - Returns a full URL string with encoded data
- *   as the 'sync' query parameter
- * @property {function} generateSyncCode - Returns just the encoded base64 string
- * @property {function} checkIncomingSync - Reads 'sync' URL param on page load; if
- *   present, decodes and calls showImportConfirm()
- * @property {function} showImportConfirm - Renders a confirmation modal showing data
- *   summary before the user approves a destructive import
- * @property {function} showModal - Renders the SYNC modal UI into #sync-modal
- * @property {function} closeModal - Hides #sync-modal
- * @property {function} saveName - Persists user's display name from the modal input
- * @property {function} copyLink - Generates and copies sync link to clipboard
- * @property {function} copyCode - Generates and copies sync code to clipboard
- * @property {function} importFromCode - Reads code from modal textarea, decodes, and
- *   calls showImportConfirm()
- * @property {function} showStatus - Displays a status message inside the modal with
- *   optional type ('success' | 'error') styling
- *
- * @interactions Export includes: Store data, LAB data, LAB audit log, user identity.
- *   Export does NOT include: SV feedback log ('conjugate_feedback_log').
- *   Import calls Store.save(), writeJSON() for lab/audit keys.
- * @sideeffects DOM root: #sync-modal
- * @limitations Import is fully destructive — there is no merge strategy. syncVersion
- *   field (value: 2) is required; imports without it are rejected.
- */
+/** Cross-device sync — encodes all data as base64 URL hash, imports/exports via link or raw code */
 var SYNC = {
   _userKey: 'conjugate_sync_user',
 
@@ -3968,7 +3815,7 @@ var SYNC = {
 
   setUser: function(name) {
     var user = { name: name, created: Date.now() };
-    try { localStorage.setItem(this._userKey, JSON.stringify(user)); } catch(e) {}
+    writeJSON(this._userKey, user);
     this.updateUserBar();
     return user;
   },
@@ -4007,7 +3854,7 @@ var SYNC = {
 
   // Restore all data from import
   importAllData: function(data) {
-    if (!data || !data.syncVersion || data.syncVersion < 2) return false;
+    if (!data || !data.syncVersion) return false;
     try {
       // Study data — ensure _earnedBadges is preserved or seeded so post-sync doesn't spam badge toasts
       if (data.study) {
@@ -4020,15 +3867,15 @@ var SYNC = {
         // Ensure schema completeness
         if (!data.study.studyStreak) data.study.studyStreak = { lastDate: null, current: 0, longest: 0 };
         if (typeof data.study.studyStreak.longest !== 'number') data.study.studyStreak.longest = data.study.studyStreak.current || 0;
-        localStorage.setItem(Store._key, JSON.stringify(data.study));
+        writeJSON(Store._key, data.study);
       }
       // Lab data
       if (data.lab) {
-        localStorage.setItem(LAB._labKey, JSON.stringify(data.lab));
+        writeJSON(LAB._labKey, data.lab);
       }
       // Audit log
       if (data.audit) {
-        localStorage.setItem(LAB._auditKey, JSON.stringify(data.audit));
+        writeJSON(LAB._auditKey, data.audit);
       }
       // Survey feedback (added in syncVersion 3)
       if (data.sv && Array.isArray(data.sv)) {
@@ -4099,7 +3946,6 @@ var SYNC = {
     var userName = data.user ? data.user.name : 'Unknown';
     var exportDate = data.exportDate ? new Date(data.exportDate).toLocaleDateString() : 'Unknown';
     var sessions = data.study ? (data.study.totalSessions || 0) : 0;
-    var feedbackCount = (data.sv && Array.isArray(data.sv)) ? data.sv.length : 0;
 
     var overlay = document.createElement('div');
     overlay.className = 'sync-overlay';
@@ -4108,9 +3954,8 @@ var SYNC = {
         '<h2>📥 Incoming Sync</h2>' +
         '<p>Import study data from <strong>' + esc(userName) + '</strong>?</p>' +
         '<div style="background:var(--neutral-bg);padding:0.75rem;border-radius:8px;font-size:0.85rem;margin-bottom:1rem">' +
-          '📊 <strong>' + sessions + '</strong> sessions' +
-          (feedbackCount ? ' &bull; 💬 <strong>' + feedbackCount + '</strong> feedback entries' : '') +
-          ' &bull; 📅 Exported ' + esc(exportDate) +
+          '📊 <strong>' + sessions + '</strong> sessions &bull; ' +
+          '📅 Exported ' + esc(exportDate) +
         '</div>' +
         '<p style="color:var(--incorrect);font-size:0.8rem">⚠️ This will replace your current data on this device.</p>' +
         '<button class="sync-btn sync-btn-primary" id="syncConfirmYes">Import Data</button>' +
@@ -4185,6 +4030,16 @@ var SYNC = {
     overlay.innerHTML = html;
     document.body.appendChild(overlay);
 
+    // Focus trap: keep Tab inside the modal
+    if (typeof focusTrap !== 'undefined' && focusTrap.createFocusTrap) {
+      this._trap = focusTrap.createFocusTrap(overlay, {
+        initialFocus: '#syncNameInput',
+        escapeDeactivates: true,
+        onDeactivate: function() { self.closeModal(); }
+      });
+      try { this._trap.activate(); } catch(e) {}
+    }
+
     // Close on overlay click (outside modal)
     overlay.addEventListener('click', function(e) {
       if (e.target === overlay) self.closeModal();
@@ -4192,6 +4047,7 @@ var SYNC = {
   },
 
   closeModal: function() {
+    if (this._trap) { try { this._trap.deactivate({ onDeactivate: false }); } catch(e) {} this._trap = null; }
     var overlay = document.getElementById('sync-overlay');
     if (overlay) document.body.removeChild(overlay);
   },
@@ -4286,79 +4142,149 @@ var SYNC = {
 // =======================================
 // INIT
 // =======================================
-/**
- * @description Application bootstrap function. Wires all top-level event listeners,
- *   applies saved dark mode preference, checks for an incoming sync URL parameter,
- *   registers the service worker, and initializes the stats bar. Called once on
- *   DOMContentLoaded.
- * @function
- * @param none
- * @sideeffects Registers event listeners on: darkModeBtn, fc-mode-btn, fc-start-btn,
- *   fcSectionFilter, qz-mode-btn, ft-mode-btn, review-mode-btn, dash-mode-btn,
- *   survey-mode-btn, lab-mode-btn, syncBtn. Calls SYNC.checkIncomingSync(),
- *   updateStatsBar(), and navigator.serviceWorker.register('./sw.js').
- * @interactions Calls Store.get/save, applyDarkMode, showMode, FC.start, QZ.setup,
- *   FT.start, RV.start, DASH.start, SV.start, LAB.start, SYNC.showModal,
- *   SYNC.checkIncomingSync, updateStatsBar
- * @limitations No null-guards on getElementById calls — a missing DOM element will
- *   throw and prevent all subsequent listeners in the function from being registered.
- *   No global keyboard shortcuts. No beforeunload listener.
- *   Service worker registration failure is non-fatal (caught and ignored).
- */
 function initApp() {
-  // Dark mode
-  var data = Store.get();
-  applyDarkMode(data.darkMode);
-  document.getElementById('darkModeBtn').addEventListener('click', function() {
-    var d = Store.get();
-    d.darkMode = !d.darkMode;
-    Store.save(d);
-    applyDarkMode(d.darkMode);
-  });
-
-  // Mode card listeners
-  document.getElementById('fc-mode-btn').addEventListener('click', function(e) {
-    var setup = document.getElementById('fc-setup');
-    if (setup) setup.style.display = 'block';
-  });
-  document.getElementById('fc-start-btn').addEventListener('click', function(e) {
-    e.stopPropagation();
-    FC.start(document.getElementById('fcSectionFilter').value);
-  });
-  document.getElementById('fcSectionFilter').addEventListener('click', function(e) {
-    e.stopPropagation();
-  });
-  document.getElementById('qz-mode-btn').addEventListener('click', function() { QZ.setup(); });
-  document.getElementById('ft-mode-btn').addEventListener('click', function() { FT.start(); });
-  document.getElementById('review-mode-btn').addEventListener('click', function() { RV.start(); });
-  document.getElementById('dash-mode-btn').addEventListener('click', function() { DASH.start(); });
-  document.getElementById('survey-mode-btn').addEventListener('click', function() { SV.start(); });
-  document.getElementById('lab-mode-btn').addEventListener('click', function() { LAB.start(); });
-
-  // Sync button
-  document.getElementById('syncBtn').addEventListener('click', function() { SYNC.showModal(); });
-  SYNC.updateUserBar();
-
-  // Check for incoming sync link
-  SYNC.checkIncomingSync();
-
-  // Init Firebase (email magic link auth) and handle link returns
-  LAB.initFirebase();
-  LAB.checkMagicLinkReturn();
-
-  // Update stats
-  updateStatsBar();
-
-  // Register service worker
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(function(err) {
-      if (window.console) console.warn('Service worker registration failed:', err);
+  try {
+    var el;
+    // Dark mode
+    var data = Store.get();
+    applyDarkMode(data.darkMode);
+    el = document.getElementById('darkModeBtn');
+    if (el) el.addEventListener('click', function() {
+      var d = Store.get();
+      d.darkMode = !d.darkMode;
+      Store.save(d);
+      applyDarkMode(d.darkMode);
     });
+
+    // Mode card listeners
+    el = document.getElementById('fc-mode-btn');
+    if (el) el.addEventListener('click', function(e) {
+      var setup = document.getElementById('fc-setup');
+      if (setup) setup.style.display = 'block';
+    });
+    el = document.getElementById('fc-start-btn');
+    if (el) el.addEventListener('click', function(e) {
+      e.stopPropagation();
+      FC.start(document.getElementById('fcSectionFilter').value);
+    });
+    el = document.getElementById('fcSectionFilter');
+    if (el) el.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+    el = document.getElementById('qz-mode-btn');
+    if (el) el.addEventListener('click', function() { QZ.setup(); });
+    el = document.getElementById('ft-mode-btn');
+    if (el) el.addEventListener('click', function() { FT.start(); });
+    el = document.getElementById('review-mode-btn');
+    if (el) el.addEventListener('click', function() { RV.start(); });
+    el = document.getElementById('dash-mode-btn');
+    if (el) el.addEventListener('click', function() { DASH.start(); });
+    el = document.getElementById('survey-mode-btn');
+    if (el) el.addEventListener('click', function() { SV.start(); });
+    el = document.getElementById('lab-mode-btn');
+    if (el) el.addEventListener('click', function() { LAB.start(); });
+
+    // Keyboard activation for mode cards (Enter/Space triggers click)
+    el = document.getElementById('mode-selector');
+    if (el) el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        var card = e.target.closest('.mode-card');
+        if (card) { e.preventDefault(); card.click(); }
+      }
+    });
+
+    // Sync button
+    el = document.getElementById('syncBtn');
+    if (el) el.addEventListener('click', function() { SYNC.showModal(); });
+    SYNC.updateUserBar();
+
+    // Check for incoming sync link
+    SYNC.checkIncomingSync();
+
+    // Update stats
+    updateStatsBar();
+
+    // Register service worker with update detection
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').then(function(reg) {
+        reg.addEventListener('updatefound', function() {
+          var newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', function() {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                showToast('Update available — refresh for the latest version');
+              }
+            });
+          }
+        });
+      }).catch(function(err) {
+        showToast('Offline mode unavailable');
+      });
+    }
+
+    // Offline/online indicator
+    function updateOnlineStatus() {
+      var indicator = document.getElementById('offlineIndicator');
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'offlineIndicator';
+        indicator.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;background:#ff9800;color:#fff;text-align:center;padding:0.35rem;font-size:0.8rem;z-index:9999;font-weight:600';
+        indicator.textContent = 'You are offline — data is saved locally';
+        document.body.appendChild(indicator);
+      }
+      indicator.style.display = navigator.onLine ? 'none' : 'block';
+    }
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus();
+
+    // Init Firebase (email magic link auth) and handle link returns
+    LAB.initFirebase();
+    LAB.checkMagicLinkReturn();
+
+    // First-time onboarding tour
+    if (typeof driver !== 'undefined' && !localStorage.getItem('conjugate_onboarded')) {
+      setTimeout(function() {
+        try {
+          var d = driver.js.driver;
+          if (!d) return;
+          var tour = d({
+            showProgress: true,
+            steps: [
+              { element: '#mode-selector', popover: { title: 'Welcome to the Study Hub!', description: 'Choose a study mode below to get started. Each card is a different way to study the Conjugate Method.', side: 'top' } },
+              { element: '#fc-mode-btn', popover: { title: 'Flashcard Deck', description: 'Flip through cards to review concepts. Cards you miss will appear more often thanks to spaced repetition.', side: 'bottom' } },
+              { element: '#qz-mode-btn', popover: { title: 'Custom Quiz', description: 'Build a quiz by section, question type, and difficulty. Great for targeted practice.', side: 'bottom' } },
+              { element: '#ft-mode-btn', popover: { title: 'Full Practice Test', description: 'Take a complete practice exam covering all sections. Scores are tracked on your dashboard.', side: 'bottom' } },
+              { element: '#dash-mode-btn', popover: { title: 'Your Progress', description: 'Track scores, streaks, badges, and see which sections need work.', side: 'bottom' } },
+              { element: '#statsBar', popover: { title: 'Quick Stats', description: 'Your study streak and session count are always visible here.', side: 'bottom' } },
+              { element: '#darkModeBtn', popover: { title: 'Dark Mode', description: 'Toggle between light and dark themes for comfortable studying.', side: 'left' } },
+              { element: '#syncBtn', popover: { title: 'Sync Across Devices', description: 'Transfer your progress to another device via a sync link. Set your name first!', side: 'left' } }
+            ],
+            onDestroyed: function() {
+              localStorage.setItem('conjugate_onboarded', '1');
+            }
+          });
+          tour.drive();
+        } catch(e) {}
+      }, 500);
+    }
+  } catch(err) {
+    var errDiv = document.createElement('div');
+    errDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:2rem;background:#b00020;color:#fff;z-index:99999;font-family:sans-serif;text-align:center';
+    errDiv.textContent = 'App failed to start. Please refresh the page. (' + (err.message || 'Unknown error') + ')';
+    document.body.appendChild(errDiv);
   }
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
+
+// Conditional Eruda mobile console: append ?debug=1 to URL
+if (location.search.indexOf('debug=1') !== -1) {
+  var erudaScript = document.createElement('script');
+  erudaScript.src = 'https://cdn.jsdelivr.net/npm/eruda';
+  erudaScript.onload = function() { if (typeof eruda !== 'undefined') eruda.init(); };
+  document.head.appendChild(erudaScript);
+}
 </script>
-<canvas id="confetti-canvas"></canvas>
 </body>
 </html>
