@@ -59,9 +59,6 @@
 
 <!-- Google Identity Services (for WIP Lab Google auth) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<!-- Firebase (for WIP Lab email magic link auth) -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js" defer></script>
 
 <!-- CDN Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" defer></script>
@@ -870,7 +867,7 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
   <div class="header-controls">
     <span id="syncUserBar" class="sync-user-bar" style="display:none"></span>
     <span id="headerUserEmail" style="display:none;font-size:0.75rem;color:var(--text-muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-    <button class="icon-btn" id="headerSignOutBtn" title="Sign out" aria-label="Sign out" style="display:none;font-size:0.85rem" onclick="LAB.firebaseSignOut()">🚪</button>
+    <button class="icon-btn" id="headerSignOutBtn" title="Sign out" aria-label="Sign out" style="display:none;font-size:0.85rem" onclick="LAB.signOutLocal()">🚪</button>
     <button class="icon-btn" id="syncBtn" title="Sync across devices" aria-label="Sync across devices">&#x1F504;</button>
     <button class="icon-btn" id="darkModeBtn" title="Toggle dark mode" aria-label="Toggle dark mode">&#x1F319;</button>
   </div>
@@ -957,7 +954,7 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
   <div class="login-card">
     <div class="login-icon">⚡</div>
     <h2>Conjugate Method Study Hub</h2>
-    <p class="login-sub">Sign in to track your progress, earn badges, and sync across devices.</p>
+    <p class="login-sub">Enter your email to track your progress, earn badges, and sync across devices. (No password — login is being rebuilt.)</p>
     <div id="login-form-area"></div>
     <div class="login-status" id="login-status"></div>
   </div>
@@ -1604,10 +1601,7 @@ function backToMenu() {
   showMode(null);
 }
 
-var _appAuthTimeout = null;
-
 function showAppAuth(user) {
-  if (_appAuthTimeout) { clearTimeout(_appAuthTimeout); _appAuthTimeout = null; }
   var loginPanel = document.getElementById('login-panel');
   var modeSelector = document.getElementById('mode-selector');
   var statsBar = document.getElementById('statsBar');
@@ -3237,19 +3231,9 @@ var LAB = {
   _enterTime: null,
   _expandedTool: null,
 
-  // ── Firebase email magic-link auth ─────────────────────────────────────────
-  _FIREBASE_CONFIG: {
-    apiKey:            'AIzaSyAcoEy2nUPxeq76lS0VhNmZiI4M0wiU0Fw',
-    authDomain:        'conjugate-method-study.firebaseapp.com',
-    projectId:         'conjugate-method-study',
-    storageBucket:     'conjugate-method-study.firebasestorage.app',
-    messagingSenderId: '192829169743',
-    appId:             '1:192829169743:web:3faaf7e2e384349dfcca3a'
-  },
-  _firebaseEmailKey: 'conjugate_email_for_signin',
-  _firebaseApp:  null,
-  _firebaseAuth: null,
-  _firebaseUser: null,
+  // ── Local-only email identifier (no real auth — login rebuild pending) ────
+  _emailKey: 'conjugate_user_email',
+  _currentUser: null,
 
   getLabData: function() {
     try {
@@ -3369,89 +3353,48 @@ var LAB = {
     showToast('Signed out');
   },
 
-  initFirebase: function() {
-    if (typeof firebase === 'undefined') return false;
-    var self = this;
-    try {
-      try { this._firebaseApp = firebase.app('conjugate'); }
-      catch(e) { this._firebaseApp = firebase.initializeApp(this._FIREBASE_CONFIG, 'conjugate'); }
-      this._firebaseAuth = firebase.auth(this._firebaseApp);
-      this._firebaseAuth.onAuthStateChanged(function(user) {
-        self._firebaseUser = user || null;
-        showAppAuth(user);
-        self.renderAuthBar();
-      });
-      return true;
-    } catch(e) { return false; }
+  initLocalAuth: function() {
+    var email = '';
+    try { email = localStorage.getItem(this._emailKey) || ''; } catch(e) {}
+    this._currentUser = email ? { email: email } : null;
+    showAppAuth(this._currentUser);
+    this.renderAuthBar();
   },
 
-  sendMagicLink: function(inputId) {
+  saveEmailAndContinue: function(inputId) {
     var input = document.getElementById(inputId || 'loginEmailInput');
-    if (!input || !this._firebaseAuth) { showToast('Sign-in unavailable — please reload'); return; }
+    if (!input) return;
     var email = input.value.trim();
     if (!email || email.indexOf('@') < 0) { showToast('Please enter a valid email'); return; }
-    var btn = input.closest('form') && input.closest('form').querySelector('button[type="submit"]');
-    if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
-    var settings = { url: location.origin + location.pathname, handleCodeInApp: true };
-    localStorage.setItem(this._firebaseEmailKey, email);
-    var self = this;
-    this._firebaseAuth.sendSignInLinkToEmail(email, settings)
-      .then(function() {
-        var status = document.getElementById('login-status');
-        var area = document.getElementById('login-form-area');
-        if (area) area.innerHTML = '';
-        if (status) status.innerHTML =
-          '📬 We sent a link to <strong>' + esc(email) + '</strong>.<br>' +
-          'Check your inbox and click the link to sign in.';
-        showToast('Magic link sent!');
-      })
-      .catch(function(err) {
-        localStorage.removeItem(self._firebaseEmailKey);
-        if (btn) { btn.disabled = false; btn.textContent = 'Send me a link'; }
-        showToast('Error: ' + (err.message || 'Could not send link'));
-      });
+    try { localStorage.setItem(this._emailKey, email); } catch(e) {}
+    this._currentUser = { email: email };
+    showAppAuth(this._currentUser);
+    this.renderAuthBar();
+    showToast('Welcome, ' + email);
   },
 
-  checkMagicLinkReturn: function() {
-    if (!this._firebaseAuth) return;
-    try { if (!this._firebaseAuth.isSignInWithEmailLink(window.location.href)) return; }
-    catch(e) { return; }
-    var email = localStorage.getItem(this._firebaseEmailKey);
-    if (!email) email = window.prompt('Please confirm your email to finish signing in:');
-    if (!email) return;
-    var status = document.getElementById('login-status');
-    if (status) status.textContent = 'Signing you in…';
-    var self = this;
-    this._firebaseAuth.signInWithEmailLink(email, window.location.href)
-      .then(function() {
-        localStorage.removeItem(self._firebaseEmailKey);
-        history.replaceState(null, '', location.pathname);
-      })
-      .catch(function(err) {
-        if (status) status.textContent = '';
-        showToast('Sign-in failed: ' + (err.message || 'Invalid or expired link'));
-      });
-  },
-
-  firebaseSignOut: function() {
-    if (!this._firebaseAuth) return;
-    this._firebaseAuth.signOut().then(function() { showToast('Signed out'); });
+  signOutLocal: function() {
+    try { localStorage.removeItem(this._emailKey); } catch(e) {}
+    this._currentUser = null;
+    showAppAuth(null);
+    this.renderAuthBar();
+    showToast('Signed out');
   },
 
   _loginFormHTML: function() {
-    return '<form class="login-email-form" onsubmit="event.preventDefault();LAB.sendMagicLink(\'loginEmailInput\')">' +
+    return '<form class="login-email-form" onsubmit="event.preventDefault();LAB.saveEmailAndContinue(\'loginEmailInput\')">' +
       '<input id="loginEmailInput" type="email" placeholder="your@email.com" required autocomplete="email">' +
-      '<button type="submit">Send me a link ✉️</button>' +
+      '<button type="submit">Continue ✉️</button>' +
     '</form>';
   },
 
   renderAuthBar: function() {
     var bar = document.getElementById('lab-auth-bar');
     if (!bar) return;
-    if (this._firebaseUser) {
+    if (this._currentUser && this._currentUser.email) {
       bar.innerHTML =
-        '<span>✉️ <strong>' + esc(this._firebaseUser.email || '') + '</strong></span>' +
-        '<button class="lab-signout" onclick="LAB.firebaseSignOut()" style="margin-left:auto">Sign out</button>';
+        '<span>✉️ <strong>' + esc(this._currentUser.email) + '</strong></span>' +
+        '<button class="lab-signout" onclick="LAB.signOutLocal()" style="margin-left:auto">Sign out</button>';
     } else {
       bar.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted)">Not signed in</span>';
     }
@@ -4196,7 +4139,7 @@ function initApp() {
     var data = Store.get();
     applyDarkMode(data.darkMode);
 
-    // Hide app content until Firebase auth resolves
+    // Hide app content until local-email auth resolves (synchronous)
     var modeSelector = document.getElementById('mode-selector');
     var statsBar = document.getElementById('statsBar');
     if (modeSelector) modeSelector.style.display = 'none';
@@ -4291,18 +4234,8 @@ function initApp() {
     window.addEventListener('offline', updateOnlineStatus);
     updateOnlineStatus();
 
-    // Init Firebase (email magic link auth) and handle link returns
-    var fbOk = LAB.initFirebase();
-    LAB.checkMagicLinkReturn();
-    if (!fbOk) {
-      // Firebase unavailable (offline/blocked) — unlock app and show warning
-      showAppAuth(null);
-      var loginStatus = document.getElementById('login-status');
-      if (loginStatus) loginStatus.textContent = 'Sign-in unavailable — check your connection and reload.';
-    } else {
-      // Failsafe: if onAuthStateChanged never fires in 5s, show login screen
-      _appAuthTimeout = setTimeout(function() { showAppAuth(null); }, 5000);
-    }
+    // Local-only email entry (real auth temporarily removed — Anna ran into a broken login flow)
+    LAB.initLocalAuth();
 
     // First-time onboarding tour
     if (typeof driver !== 'undefined' && !localStorage.getItem('conjugate_onboarded')) {
