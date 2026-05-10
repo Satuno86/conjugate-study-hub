@@ -17,7 +17,7 @@ const { test, expect } = require('@playwright/test');
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Wipe all app localStorage keys before a test */
+/** Wipe all app localStorage keys before a test (preserve the test login email) */
 async function clearStorage(page) {
   await page.evaluate(() => {
     [
@@ -27,6 +27,8 @@ async function clearStorage(page) {
       'conjugate_lab_audit',
       'conjugate_sync_user',
     ].forEach((k) => localStorage.removeItem(k));
+    // Keep the user past the local-email login gate
+    localStorage.setItem('conjugate_user_email', 'test@example.com');
   });
 }
 
@@ -49,7 +51,12 @@ async function seedStudyData(page, overrides = {}) {
 
 /** Navigate to the app and wait for the mode selector to be ready */
 async function gotoApp(page) {
+  // Pre-seed the local-email login so the app skips the login gate.
+  // We need a page context to call localStorage.setItem, so visit once,
+  // seed, then reload.
   await page.goto('http://localhost:3000');
+  await page.evaluate(() => localStorage.setItem('conjugate_user_email', 'test@example.com'));
+  await page.reload();
   await page.waitForSelector('#mode-selector', { state: 'visible' });
 }
 

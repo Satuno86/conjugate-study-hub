@@ -3370,7 +3370,7 @@ var LAB = {
     this._currentUser = { email: email };
     showAppAuth(this._currentUser);
     this.renderAuthBar();
-    showToast('Welcome, ' + email);
+    showToast('Welcome, ' + esc(email));
   },
 
   signOutLocal: function() {
