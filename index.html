@@ -868,6 +868,7 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
     <span id="syncUserBar" class="sync-user-bar" style="display:none"></span>
     <span id="headerUserEmail" style="display:none;font-size:0.75rem;color:var(--text-muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
     <button class="icon-btn" id="headerSignOutBtn" title="Sign out" aria-label="Sign out" style="display:none;font-size:0.85rem" onclick="LAB.signOutLocal()">🚪</button>
+    <button class="icon-btn" id="bugReportBtn" title="Report a problem" aria-label="Report a problem" onclick="BUG.promptAndReport()">&#x1F41B;</button>
     <button class="icon-btn" id="syncBtn" title="Sync across devices" aria-label="Sync across devices">&#x1F504;</button>
     <button class="icon-btn" id="darkModeBtn" title="Toggle dark mode" aria-label="Toggle dark mode">&#x1F319;</button>
   </div>
@@ -969,22 +970,113 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 
 <script>
 // =======================================
+// BUG REPORTING — pre-fills a GitHub issue
+// =======================================
+var BUG = {
+  ISSUE_BASE: 'https://github.com/Satuno86/conjugate-study-hub/issues/new',
+
+  collectContext: function() {
+    var email = '';
+    try { email = localStorage.getItem('conjugate_user_email') || ''; } catch(e) {}
+    var errors = [];
+    try { errors = JSON.parse(localStorage.getItem('_errorLog') || '[]'); } catch(e) {}
+    return {
+      timestamp: new Date().toISOString(),
+      url: location.href,
+      email: email,
+      userAgent: navigator.userAgent,
+      recentErrors: errors.slice(-5)
+    };
+  },
+
+  buildIssueURL: function(title, userText, autoDetail, labels) {
+    var ctx = this.collectContext();
+    var lines = [];
+    if (userText) { lines.push(userText, '', '---', ''); }
+    if (autoDetail) { lines.push(autoDetail, ''); }
+    lines.push('**Diagnostic context** (auto-attached):');
+    lines.push('- Time: ' + ctx.timestamp);
+    lines.push('- URL: ' + ctx.url);
+    if (ctx.email) lines.push('- User: ' + ctx.email);
+    lines.push('- User agent: ' + ctx.userAgent);
+    if (ctx.recentErrors.length) {
+      lines.push('', '**Recent JS errors (last ' + ctx.recentErrors.length + '):**', '```');
+      ctx.recentErrors.forEach(function(e) {
+        var when = e.ts ? new Date(e.ts).toISOString() : '?';
+        lines.push(when + ' — ' + (e.msg || '?') + ' @ ' + (e.src || '?') + ':' + (e.line || '?') + ':' + (e.col || '?'));
+      });
+      lines.push('```');
+    }
+    var body = lines.join('\n');
+    return this.ISSUE_BASE +
+      '?title=' + encodeURIComponent(title) +
+      '&body=' + encodeURIComponent(body) +
+      '&labels=' + encodeURIComponent(labels || 'bug,user-report');
+  },
+
+  promptAndReport: function() {
+    var msg = window.prompt('Briefly describe what went wrong (leave blank to just send diagnostics):');
+    if (msg === null) return;
+    var title = (msg && msg.trim()) ? '[Bug] ' + msg.trim().slice(0, 80) : '[Bug] Report from user';
+    var url = this.buildIssueURL(title, msg);
+    var opened = window.open(url, '_blank', 'noopener');
+    if (!opened) showToast('Pop-up blocked — please allow pop-ups to file a report.');
+  },
+
+  reportError: function(entry) {
+    var summary = entry && entry.msg ? entry.msg : 'Unknown error';
+    var title = '[Auto] ' + String(summary).slice(0, 80);
+    var detail = '**Auto-captured error:**\n```\n' + summary +
+      '\n  at ' + (entry.src || '?') + ':' + (entry.line || '?') + ':' + (entry.col || '?') + '\n```';
+    var url = this.buildIssueURL(title, '', detail, 'bug,auto-captured');
+    var opened = window.open(url, '_blank', 'noopener');
+    if (!opened) showToast('Pop-up blocked — please allow pop-ups to file a report.');
+  }
+};
+
+// Persistent error banner (won't auto-dismiss; offers a Report button)
+function showErrorBanner(entry) {
+  try {
+    var existing = document.getElementById('errorBanner');
+    if (existing) existing.remove();
+    var bar = document.createElement('div');
+    bar.id = 'errorBanner';
+    bar.style.cssText = 'position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);max-width:min(560px,92vw);background:#b00020;color:#fff;padding:0.85rem 1rem;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,0.28);z-index:99998;display:flex;gap:0.6rem;align-items:center;font-size:0.9rem;line-height:1.4;font-family:inherit';
+    var msgText = (typeof esc === 'function') ? esc(entry.msg || 'Unknown error') : String(entry.msg || 'Unknown error');
+    bar.innerHTML =
+      '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">⚠️ Something went wrong: <code style="background:rgba(255,255,255,0.18);padding:0.1rem 0.35rem;border-radius:4px;font-size:0.8rem">' + msgText + '</code></span>' +
+      '<button id="errorBannerReport" style="background:#fff;color:#b00020;border:none;padding:0.4rem 0.75rem;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.85rem;white-space:nowrap">Report</button>' +
+      '<button id="errorBannerDismiss" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);padding:0.35rem 0.6rem;border-radius:6px;cursor:pointer;font-size:0.85rem">Dismiss</button>';
+    document.body.appendChild(bar);
+    document.getElementById('errorBannerReport').addEventListener('click', function() { BUG.reportError(entry); });
+    document.getElementById('errorBannerDismiss').addEventListener('click', function() { bar.remove(); });
+  } catch(e) {
+    if (typeof showToast === 'function') showToast('Error: ' + (entry.msg || 'Unknown error'));
+  }
+}
+
+// =======================================
 // GLOBAL ERROR HANDLER
 // =======================================
 window.onerror = function(msg, src, line, col, err) {
   try {
-    var label = 'Error: ' + (msg || 'Unknown error');
-    if (typeof showToast === 'function') showToast(label);
+    var entry = { msg: msg, src: src, line: line, col: col, ts: Date.now() };
     var log = JSON.parse(localStorage.getItem('_errorLog') || '[]');
-    log.push({ msg: msg, src: src, line: line, col: col, ts: Date.now() });
+    log.push(entry);
     if (log.length > 50) log = log.slice(-50);
     localStorage.setItem('_errorLog', JSON.stringify(log));
+    showErrorBanner(entry);
   } catch(e) {}
 };
 window.addEventListener('unhandledrejection', function(e) {
   try {
-    var label = 'Async error: ' + (e.reason && e.reason.message ? e.reason.message : 'Unknown');
-    if (typeof showToast === 'function') showToast(label);
+    var reasonMsg = e.reason && e.reason.message ? e.reason.message : 'Unknown async error';
+    var entry = { msg: reasonMsg, src: 'unhandledrejection', line: 0, col: 0, ts: Date.now() };
+    var log = JSON.parse(localStorage.getItem('_errorLog') || '[]');
+    log.push(entry);
+    if (log.length > 50) log = log.slice(-50);
+    localStorage.setItem('_errorLog', JSON.stringify(log));
+    showErrorBanner(entry);
   } catch(ex) {}
 });
 
@@ -3154,7 +3246,7 @@ var SV = {
     log.push(entry);
     writeJSON(this.feedbackKey, log);
 
-    // Try to open a pre-filled GitHub issue
+    // Open a pre-filled GitHub issue with diagnostic context auto-attached
     var topicLabels = {
       general: 'General Feedback',
       confusing: 'Confusing/Wrong Question',
@@ -3163,16 +3255,10 @@ var SV = {
       bug: 'Bug Report',
       love: 'Positive Feedback'
     };
-    var title = encodeURIComponent('[Feedback] ' + topicLabels[topic]);
-    var body = encodeURIComponent(
-      '**From:** Anna\n' +
-      '**Category:** ' + topicLabels[topic] + '\n' +
-      '**Date:** ' + new Date().toLocaleDateString() + '\n\n' +
-      '---\n\n' +
-      message + '\n\n' +
-      '---\n_Submitted from Conjugate Study Hub_'
-    );
-    var issueUrl = 'https://github.com/Satuno86/conjugate-study-hub/issues/new?title=' + title + '&body=' + body + '&labels=feedback';
+    var labelTag = (topic === 'bug' || topic === 'confusing') ? 'bug,feedback' : 'feedback';
+    var titleStr = '[Feedback] ' + topicLabels[topic] + ': ' + message.slice(0, 60);
+    var userBody = '**Category:** ' + topicLabels[topic] + '\n\n' + message;
+    var issueUrl = BUG.buildIssueURL(titleStr, userBody, null, labelTag);
 
     status.style.display = 'block';
     status.innerHTML =
