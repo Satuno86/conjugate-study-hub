@@ -1,0 +1,17 @@
+name = "conjugate-feedback"
+main = "feedback-issue.js"
+compatibility_date = "2026-01-01"
+
+# After `wrangler login`:
+#   wrangler secret put GITHUB_TOKEN
+#   wrangler deploy
+#
+# The deploy URL will be something like
+#   https://conjugate-feedback.<your-subdomain>.workers.dev
+# Paste that URL into BUG.FEEDBACK_ENDPOINT in index.html.
+
+[vars]
+GH_OWNER = "Satuno86"
+GH_REPO = "conjugate-study-hub"
+# Override ALLOWED_ORIGINS if you serve the app from a custom domain.
+# ALLOWED_ORIGINS = "https://your-domain.example,https://satuno86.github.io"
