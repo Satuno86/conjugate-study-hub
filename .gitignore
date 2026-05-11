@@ -11,3 +11,10 @@ desktop.ini
 
 # Old files
 conjugate_study_app.html
+
+# Node / Playwright
+node_modules/
+package-lock.json
+test-results/
+playwright-report/
+
