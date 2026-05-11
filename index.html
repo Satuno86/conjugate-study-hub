@@ -664,6 +664,44 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 .login-email-form button[type="submit"]:hover { opacity:0.88; }
 .login-status { margin-top:1rem; font-size:0.875rem; color:var(--text-muted); line-height:1.5; }
 
+/* =================== COACH TOOLS =================== */
+.tools-wrap { max-width:760px; margin:0 auto; padding:0 1.5rem 2rem; }
+.tools-tabs { display:flex; gap:0.5rem; margin:0.5rem 0 1.5rem; flex-wrap:wrap; }
+.tools-tab {
+  padding:0.55rem 1rem; border-radius:999px; border:1.5px solid var(--border);
+  background:var(--card); color:var(--text); cursor:pointer;
+  font-size:0.875rem; font-weight:600;
+}
+.tools-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.tools-card {
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  padding:1.25rem; margin-bottom:1rem;
+}
+.tools-card h3 { margin:0 0 0.25rem; font-size:1.15rem; }
+.tools-card .tools-card-sub { color:var(--text-muted); font-size:0.85rem; margin:0 0 1rem; line-height:1.4; }
+.tools-row { display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.75rem; align-items:end; }
+.tools-field { display:flex; flex-direction:column; gap:0.25rem; flex:1; min-width:140px; }
+.tools-field label { font-size:0.8rem; font-weight:600; color:var(--text-muted); }
+.tools-field input, .tools-field select {
+  padding:0.55rem 0.7rem; border:1.5px solid var(--border); border-radius:8px;
+  font-size:0.95rem; background:var(--input-bg, var(--bg)); color:var(--text);
+}
+.tools-field input:focus, .tools-field select:focus { outline:none; border-color:var(--accent); }
+.tools-output {
+  background:var(--neutral-bg, rgba(0,0,0,0.04)); border-radius:8px; padding:0.9rem 1rem;
+  margin-top:0.75rem; font-size:0.9rem; line-height:1.55;
+}
+.tools-output table { width:100%; border-collapse:collapse; font-size:0.9rem; }
+.tools-output th, .tools-output td { padding:0.4rem 0.55rem; text-align:left; border-bottom:1px solid var(--border); }
+.tools-output th { font-weight:700; color:var(--text); }
+.tools-output td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.tools-output .tools-out-headline { font-size:1.05rem; font-weight:700; color:var(--accent); margin-bottom:0.25rem; }
+.tools-source {
+  font-size:0.72rem; color:var(--text-muted); margin-top:0.6rem; line-height:1.4;
+}
+.tools-source a { color:var(--accent); text-decoration:none; }
+.tools-source a:hover { text-decoration:underline; }
+
 /* =================== WIP LAB =================== */
 .lab-wip-badge {
   display:inline-block; background:#9333ea; color:white; font-size:0.65rem;
@@ -945,6 +983,11 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
     <h3>Feedback</h3>
     <p>Help us make this app better! Flag confusing questions, suggest topics, or share what's working.</p>
   </div>
+  <div class="mode-card" role="button" tabindex="0" id="tools-mode-btn">
+    <span class="mode-icon">&#x1F9EE;</span>
+    <h3>Coach Tools</h3>
+    <p>Working calculators: 1RM, Prilepin's chart, and 3-week DE waves for bench, squat, and deadlift.</p>
+  </div>
   <div class="mode-card" role="button" tabindex="0" id="lab-mode-btn">
     <span class="mode-icon">&#x1F9EA;</span>
     <h3>WIP Lab <span class="lab-wip-badge">WIP</span></h3>
@@ -966,6 +1009,7 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
 <div id="review-panel" class="mode-panel"></div>
 <div id="dash-panel" class="mode-panel"></div>
 <div id="survey-panel" class="mode-panel"></div>
+<div id="tools-panel" class="mode-panel"></div>
 <div id="lab-panel" class="mode-panel"></div>
 
 <script>
@@ -1200,7 +1244,7 @@ var QUESTIONS = [
   {id:27,s:3,type:"mc",q:"What is the recommended rest period between sets during dynamic effort squat training?",opts:["3-5 minutes","2-3 minutes","45-60 seconds","15-30 seconds"],ans:2,exp:"DE squat sets use short rest intervals of 45-60 seconds. All 12 sets should be completed in roughly 20-25 minutes."},
   {id:28,s:3,type:"mc",q:"How do chains differ from bands as accommodating resistance?",opts:["Chains add linear resistance as they leave the floor, while bands create exponentially increasing tension and also accelerate the eccentric","Chains are only used for upper body and bands are only for lower body","They function identically; the choice is purely aesthetic","Bands add linear resistance while chains create exponential resistance"],ans:0,exp:"Chains add weight linearly as links leave the floor. Bands create exponentially increasing tension and also pull the bar down faster on the eccentric phase."},
   {id:29,s:3,type:"tf",q:"Dynamic effort training sessions should be scheduled the day immediately before a max effort session for the same muscle group.",ans:false,exp:"Approximately 72 hours should separate DE and ME sessions for the same muscle group. Example: ME Lower Monday, DE Lower Friday."},
-  {id:30,s:3,type:"mc",q:"For dynamic effort upper body, the typical total training intensity (bar weight + accommodating resistance) falls in what range?",opts:["30-40%","75-85%","85-95%","50-60%"],ans:3,exp:"DE upper body work uses 50-60% total intensity. This is lower than DE lower (75-85%) to maintain the bar speed required for explosive pressing power."},
+  {id:30,s:3,type:"mc",q:"For dynamic effort upper body (speed bench), what is the typical BAR-WEIGHT-only percentage of 1RM across a 3-week wave (before adding band/chain tension)?",opts:["30-40%","75-85%","85-95%","50-60%"],ans:3,exp:"DE bench uses 50/55/60% bar weight (Week 1/2/3) — i.e. a 50-60% range — plus ~25% accommodating resistance, for a total load of 75/80/85%. The bar-weight range is the same for DE squat. Some older sources cite the bar-weight number without naming the AR contribution, which is a common source of confusion."},
   {id:31,s:3,type:"mc",q:"After completing a 3-week dynamic effort wave, the standard protocol is to:",opts:["Take a full deload week off","Continue increasing intensity to 90%+","Reset the wave, typically changing the bar variation or type of accommodating resistance","Switch entirely to max effort work for 3 weeks"],ans:2,exp:"After a 3-week wave, reset to Week 1 percentages but change the stimulus: different bar, switch from bands to chains, or adjust grip/stance."},
   // SECTION 4: REPEATED EFFORT / ACCESSORIES
   {id:32,s:4,type:"mc",q:"What does GPP stand for in Conjugate training?",opts:["Gradual Progressive Periodization","General Physical Preparedness","Guided Performance Programming","General Postural Positioning"],ans:1,exp:"GPP = General Physical Preparedness. It refers to the athlete's overall fitness base including conditioning, work capacity, and general muscular development."},
@@ -3389,6 +3433,252 @@ var SV = {
 // WIP LAB
 // =======================================
 /** WIP Lab — 5 experimental coaching tools with star ratings, usage audit log, and idea submission */
+// =======================================
+// COACH TOOLS — working calculators that interlink
+// =======================================
+//
+// Three tools, all driven by a single shared "training maxes" state:
+//   - 1RM calculator (Epley / Brzycki / Lombardi formulas)
+//   - Prilepin's chart lookup (canonical 4-zone table)
+//   - Dynamic-Effort wave calculator (bench / squat / deadlift 3-week waves)
+//
+// All numbers traced to docs/research/conjugate-authoritative.md.
+var TOOLS = {
+  _stateKey: 'conjugate_tools_state',
+  _activeTab: '1rm',
+
+  // Persisted across sessions so Anna's maxes pre-fill on return.
+  getState: function() {
+    try {
+      var raw = localStorage.getItem(this._stateKey);
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return { bench: '', squat: '', deadlift: '', lastReps: '', lastWeight: '', prilepinPct: '85' };
+  },
+
+  saveState: function(s) { writeJSON(this._stateKey, s); },
+
+  start: function() {
+    showMode('tools');
+    this.render();
+  },
+
+  setTab: function(tab) {
+    this._activeTab = tab;
+    this.render();
+  },
+
+  render: function() {
+    var panel = document.getElementById('tools-panel');
+    if (!panel) return;
+    var tab = this._activeTab;
+    var html = '';
+    html += '<div style="padding:1rem 1.5rem 0"><button class="btn btn-sm" onclick="backToMenu()">&larr; Back to Menu</button></div>';
+    html += '<div class="tools-wrap">';
+    html += '<h2 style="margin:0 0 0.25rem;font-size:1.5rem">&#x1F9EE; Coach Tools</h2>';
+    html += '<p style="color:var(--text-muted);font-size:0.9rem;margin:0 0 1rem;line-height:1.5">Working calculators backed by Westside Barbell\'s published numbers. All percentages cite their source.</p>';
+    html += '<div class="tools-tabs">';
+    html += '<button class="tools-tab' + (tab === '1rm' ? ' active' : '') + '" onclick="TOOLS.setTab(\'1rm\')">1RM Calculator</button>';
+    html += '<button class="tools-tab' + (tab === 'prilepin' ? ' active' : '') + '" onclick="TOOLS.setTab(\'prilepin\')">Prilepin\'s Chart</button>';
+    html += '<button class="tools-tab' + (tab === 'dewave' ? ' active' : '') + '" onclick="TOOLS.setTab(\'dewave\')">DE Wave</button>';
+    html += '</div>';
+    if (tab === '1rm') html += this.render1RM();
+    else if (tab === 'prilepin') html += this.renderPrilepin();
+    else if (tab === 'dewave') html += this.renderDEWave();
+    html += '</div>';
+    panel.innerHTML = html;
+    // After insert, populate output if state has values
+    if (tab === '1rm') this.recompute1RM();
+    if (tab === 'prilepin') this.recomputePrilepin();
+    if (tab === 'dewave') this.recomputeDEWave();
+  },
+
+  // ── 1RM Calculator ───────────────────────────────────────────────────
+  render1RM: function() {
+    var s = this.getState();
+    return '<div class="tools-card">' +
+      '<h3>Estimate a 1RM from a submaximal set</h3>' +
+      '<p class="tools-card-sub">Enter a set you actually performed. Three published formulas are shown — Epley, Brzycki, and Lombardi. Use the average for programming.</p>' +
+      '<div class="tools-row">' +
+        '<div class="tools-field"><label for="oneRMWeight">Weight lifted</label>' +
+          '<input id="oneRMWeight" type="number" min="0" step="any" inputmode="decimal" value="' + esc(String(s.lastWeight || '')) + '" oninput="TOOLS.recompute1RM()"></div>' +
+        '<div class="tools-field"><label for="oneRMReps">Reps performed</label>' +
+          '<input id="oneRMReps" type="number" min="1" max="15" step="1" inputmode="numeric" value="' + esc(String(s.lastReps || '')) + '" oninput="TOOLS.recompute1RM()"></div>' +
+      '</div>' +
+      '<div class="tools-output" id="oneRMOutput">Enter a weight and reps to see the estimate.</div>' +
+      '<p class="tools-source">Epley: w × (1 + r/30). Brzycki: w × 36/(37−r). Lombardi: w × r^0.10.</p>' +
+    '</div>';
+  },
+
+  recompute1RM: function() {
+    var out = document.getElementById('oneRMOutput');
+    if (!out) return;
+    var wEl = document.getElementById('oneRMWeight');
+    var rEl = document.getElementById('oneRMReps');
+    var w = parseFloat(wEl && wEl.value);
+    var r = parseInt(rEl && rEl.value, 10);
+    if (!isFinite(w) || w <= 0 || !isFinite(r) || r < 1) {
+      out.innerHTML = 'Enter a weight and reps to see the estimate.';
+      return;
+    }
+    if (r > 15) {
+      out.innerHTML = '<span style="color:var(--incorrect)">Estimates lose accuracy above ~10 reps. Try a heavier weight for fewer reps.</span>';
+      return;
+    }
+    var epley = w * (1 + r / 30);
+    var brzycki = r < 37 ? w * 36 / (37 - r) : NaN;
+    var lombardi = w * Math.pow(r, 0.10);
+    var avg = (epley + brzycki + lombardi) / 3;
+    var tm = avg * 0.9;
+    // Persist
+    var s = this.getState();
+    s.lastReps = r;
+    s.lastWeight = w;
+    this.saveState(s);
+    var round = function(n) { return isFinite(n) ? Math.round(n * 10) / 10 : '—'; };
+    out.innerHTML =
+      '<div class="tools-out-headline">Estimated 1RM: ' + round(avg) + '</div>' +
+      '<table><tbody>' +
+        '<tr><th>Epley</th><td class="num">' + round(epley) + '</td></tr>' +
+        '<tr><th>Brzycki</th><td class="num">' + round(brzycki) + '</td></tr>' +
+        '<tr><th>Lombardi</th><td class="num">' + round(lombardi) + '</td></tr>' +
+        '<tr><th>Training max (90%)</th><td class="num"><strong>' + round(tm) + '</strong></td></tr>' +
+      '</tbody></table>' +
+      '<p style="margin:0.5rem 0 0;font-size:0.8rem;color:var(--text-muted)">Tip: Westside uses ~90% of an actual 1RM as the "training max" that drives DE wave percentages.</p>';
+  },
+
+  // ── Prilepin's Chart ─────────────────────────────────────────────────
+  PRILEPIN_TABLE: [
+    { lo: 0,  hi: 70, repsPerSet: '3-6', optimal: 24, range: '18-30' },
+    { lo: 70, hi: 79, repsPerSet: '3-6', optimal: 18, range: '12-24' },
+    { lo: 80, hi: 89, repsPerSet: '2-4', optimal: 15, range: '10-20' },
+    { lo: 90, hi: 100, repsPerSet: '1-2', optimal: 7,  range: '4-10' }
+  ],
+
+  renderPrilepin: function() {
+    var s = this.getState();
+    var pct = parseInt(s.prilepinPct, 10);
+    if (!isFinite(pct)) pct = 85;
+    var rows = this.PRILEPIN_TABLE.map(function(z) {
+      var label = z.lo === 0 ? '≤70%' : (z.hi === 100 ? '≥90%' : z.lo + '–' + z.hi + '%');
+      return '<tr><th>' + label + '</th><td>' + z.repsPerSet + '</td><td class="num">' + z.optimal + '</td><td class="num">' + z.range + '</td></tr>';
+    }).join('');
+    return '<div class="tools-card">' +
+      '<h3>Prilepin\'s chart lookup</h3>' +
+      '<p class="tools-card-sub">Enter a training intensity to see the optimal reps-per-set, total-rep target, and acceptable range for that zone.</p>' +
+      '<div class="tools-row">' +
+        '<div class="tools-field" style="max-width:200px"><label for="prilepinPct">Intensity (% of 1RM)</label>' +
+          '<input id="prilepinPct" type="number" min="40" max="100" step="1" inputmode="numeric" value="' + pct + '" oninput="TOOLS.recomputePrilepin()"></div>' +
+      '</div>' +
+      '<div class="tools-output" id="prilepinOutput"></div>' +
+      '<table class="tools-output" style="margin-top:1rem">' +
+        '<thead><tr><th>Zone</th><th>Reps / set</th><th class="num">Optimal total</th><th class="num">Range</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+      '<p class="tools-source">Source: Prilepin\'s table (Soviet Olympic weightlifting research, adapted by Louie Simmons). See <a href="https://70sbig.com/blog/2012/05/prilepins-chart/" target="_blank" rel="noopener">70sbig.com/blog/2012/05/prilepins-chart/</a>.</p>' +
+    '</div>';
+  },
+
+  recomputePrilepin: function() {
+    var out = document.getElementById('prilepinOutput');
+    var input = document.getElementById('prilepinPct');
+    if (!out || !input) return;
+    var pct = parseInt(input.value, 10);
+    if (!isFinite(pct) || pct < 1 || pct > 100) {
+      out.innerHTML = 'Enter a percentage from 1–100.';
+      return;
+    }
+    var zone = this.PRILEPIN_TABLE[0];
+    for (var i = 0; i < this.PRILEPIN_TABLE.length; i++) {
+      var z = this.PRILEPIN_TABLE[i];
+      if (pct >= z.lo && pct <= z.hi) { zone = z; break; }
+    }
+    var s = this.getState();
+    s.prilepinPct = pct;
+    this.saveState(s);
+    var label = zone.lo === 0 ? '≤70%' : (zone.hi === 100 ? '≥90%' : zone.lo + '–' + zone.hi + '%');
+    out.innerHTML =
+      '<div class="tools-out-headline">At ' + pct + '%: ' + zone.repsPerSet + ' reps per set</div>' +
+      '<div>Optimal total: <strong>' + zone.optimal + ' lifts</strong> &nbsp;·&nbsp; Acceptable range: <strong>' + zone.range + '</strong></div>' +
+      '<div style="font-size:0.85rem;color:var(--text-muted);margin-top:0.35rem">Zone: ' + label + '</div>';
+  },
+
+  // ── Dynamic Effort wave calculator ───────────────────────────────────
+  // Westside canonical waves. Percentages are TOTAL load (bar + AR).
+  // Bar weight is 50/55/60% (or DL: 45/50/55%); accommodating resistance is +25%.
+  // Source: westside-barbell.com/blogs/the-blog/the-wsbb-guide-to-dynamic-effort-training
+  DE_WAVES: {
+    bench:    [ { week:1, sets:9,  reps:3, bar:50, ar:25 },
+                { week:2, sets:9,  reps:3, bar:55, ar:25 },
+                { week:3, sets:9,  reps:3, bar:60, ar:25 } ],
+    squat:    [ { week:1, sets:12, reps:2, bar:50, ar:25 },
+                { week:2, sets:10, reps:2, bar:55, ar:25 },
+                { week:3, sets:8,  reps:2, bar:60, ar:25 } ],
+    deadlift: [ { week:1, sets:8,  reps:1, bar:45, ar:25 },
+                { week:2, sets:6,  reps:1, bar:50, ar:25 },
+                { week:3, sets:4,  reps:1, bar:55, ar:25 } ]
+  },
+
+  renderDEWave: function() {
+    var s = this.getState();
+    return '<div class="tools-card">' +
+      '<h3>Dynamic Effort 3-week wave</h3>' +
+      '<p class="tools-card-sub">Enter your 1RMs to see Westside\'s canonical DE wave for each lift: bar weight, accommodating resistance (~25% of total), and the matching total load.</p>' +
+      '<div class="tools-row">' +
+        '<div class="tools-field"><label for="deBench">Bench 1RM</label><input id="deBench" type="number" min="0" step="any" inputmode="decimal" value="' + esc(String(s.bench || '')) + '" oninput="TOOLS.recomputeDEWave()"></div>' +
+        '<div class="tools-field"><label for="deSquat">Squat 1RM</label><input id="deSquat" type="number" min="0" step="any" inputmode="decimal" value="' + esc(String(s.squat || '')) + '" oninput="TOOLS.recomputeDEWave()"></div>' +
+        '<div class="tools-field"><label for="deDead">Deadlift 1RM</label><input id="deDead" type="number" min="0" step="any" inputmode="decimal" value="' + esc(String(s.deadlift || '')) + '" oninput="TOOLS.recomputeDEWave()"></div>' +
+      '</div>' +
+      '<div id="deWaveOutput"></div>' +
+      '<p class="tools-source">Sources: <a href="https://www.westside-barbell.com/blogs/the-blog/the-wsbb-guide-to-dynamic-effort-training" target="_blank" rel="noopener">WSBB DE guide</a> &nbsp;·&nbsp; <a href="https://www.westside-barbell.com/blogs/the-blog/starting-conjugate-dynamic-deadlift" target="_blank" rel="noopener">Dynamic Deadlift</a>. Note: AR ≈25% of total is the canonical guidance; raw lifters often run straight bar weight at 70-80% instead.</p>' +
+    '</div>';
+  },
+
+  _waveTable: function(name, lift, oneRM) {
+    var rows = this.DE_WAVES[lift];
+    var hasRM = isFinite(oneRM) && oneRM > 0;
+    var body = rows.map(function(r) {
+      var total = r.bar + r.ar;
+      var barW = hasRM ? Math.round(oneRM * r.bar / 100 * 10) / 10 : null;
+      var arW  = hasRM ? Math.round(oneRM * r.ar  / 100 * 10) / 10 : null;
+      var totW = hasRM ? Math.round(oneRM * total / 100 * 10) / 10 : null;
+      var loadCell = hasRM
+        ? '<strong>' + barW + '</strong> bar + ' + arW + ' AR = <strong>' + totW + '</strong>'
+        : '<span style="color:var(--text-muted)">Enter 1RM</span>';
+      return '<tr>' +
+        '<th>Wk ' + r.week + '</th>' +
+        '<td>' + r.sets + '×' + r.reps + '</td>' +
+        '<td class="num">' + r.bar + '%</td>' +
+        '<td class="num">' + r.ar + '%</td>' +
+        '<td class="num">' + total + '%</td>' +
+        '<td>' + loadCell + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<div class="tools-output" style="margin-top:0.75rem">' +
+      '<div class="tools-out-headline">' + name + '</div>' +
+      '<table><thead><tr><th>Wk</th><th>Sets×Reps</th><th class="num">Bar %</th><th class="num">AR %</th><th class="num">Total %</th><th>Load</th></tr></thead>' +
+      '<tbody>' + body + '</tbody></table>' +
+    '</div>';
+  },
+
+  recomputeDEWave: function() {
+    var out = document.getElementById('deWaveOutput');
+    if (!out) return;
+    var b = parseFloat((document.getElementById('deBench') || {}).value);
+    var sq = parseFloat((document.getElementById('deSquat') || {}).value);
+    var dl = parseFloat((document.getElementById('deDead') || {}).value);
+    var s = this.getState();
+    s.bench = isFinite(b) && b > 0 ? b : '';
+    s.squat = isFinite(sq) && sq > 0 ? sq : '';
+    s.deadlift = isFinite(dl) && dl > 0 ? dl : '';
+    this.saveState(s);
+    out.innerHTML =
+      this._waveTable('Speed Bench (9×3)', 'bench', b) +
+      this._waveTable('Speed Squat / Box Squat', 'squat', sq) +
+      this._waveTable('Speed Deadlift (singles after squat)', 'deadlift', dl);
+  }
+};
+
 var LAB = {
   tools: [
     { id: 'scenario', name: 'Scenario Simulator', icon: '🎯', desc: 'Walk through coaching scenarios — athlete profiles, weak points, exercise selection decisions.' },
@@ -4353,6 +4643,8 @@ function initApp() {
     if (el) el.addEventListener('click', function() { DASH.start(); });
     el = document.getElementById('survey-mode-btn');
     if (el) el.addEventListener('click', function() { SV.start(); });
+    el = document.getElementById('tools-mode-btn');
+    if (el) el.addEventListener('click', function() { TOOLS.start(); });
     el = document.getElementById('lab-mode-btn');
     if (el) el.addEventListener('click', function() { LAB.start(); });
 
