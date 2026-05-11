@@ -1061,14 +1061,35 @@ var BUG = {
       });
   },
 
+  // Translate a reportIssue result into a user-facing toast. Both r.error and
+  // r.popupBlocked can be true at the same time (auto-post failed AND the
+  // fallback popup was blocked by the browser) — surface both, and log the URL
+  // so the user has a path forward.
+  _toastForResult: function(r, postedMsg) {
+    if (r.posted) { showToast(postedMsg); return; }
+    if (r.error && r.popupBlocked) {
+      try { console.warn('[BUG] auto-post failed AND popup blocked. File manually:', r.url); } catch(e) {}
+      showToast('Auto-post failed (' + r.error + ') and the GitHub tab was blocked — check the console for the URL or allow pop-ups and retry.');
+      return;
+    }
+    if (r.popupBlocked) {
+      try { console.warn('[BUG] popup blocked. File manually:', r.url); } catch(e) {}
+      showToast('Pop-up blocked — allow pop-ups to file a report (URL logged to console).');
+      return;
+    }
+    if (r.error) {
+      showToast('Auto-post failed (' + r.error + ') — opened GitHub to file manually.');
+      return;
+    }
+  },
+
   promptAndReport: function() {
     var msg = window.prompt('Briefly describe what went wrong (leave blank to just send diagnostics):');
     if (msg === null) return;
     var title = (msg && msg.trim()) ? '[Bug] ' + msg.trim().slice(0, 80) : '[Bug] Report from user';
+    var self = this;
     this.reportIssue(title, msg, null, ['bug', 'user-report']).then(function(r) {
-      if (r.posted) showToast('Reported! Issue #' + r.number + ' filed.');
-      else if (r.error) showToast('Auto-post failed (' + r.error + ') — opened GitHub to file manually.');
-      else if (r.popupBlocked) showToast('Pop-up blocked — please allow pop-ups to file a report.');
+      self._toastForResult(r, 'Reported! Issue #' + r.number + ' filed.');
     });
   },
 
@@ -1077,10 +1098,9 @@ var BUG = {
     var title = '[Auto] ' + String(summary).slice(0, 80);
     var detail = '**Auto-captured error:**\n```\n' + summary +
       '\n  at ' + (entry.src || '?') + ':' + (entry.line || '?') + ':' + (entry.col || '?') + '\n```';
+    var self = this;
     this.reportIssue(title, '', detail, ['bug', 'auto-captured']).then(function(r) {
-      if (r.posted) showToast('Error reported as issue #' + r.number + '.');
-      else if (r.error) showToast('Auto-post failed (' + r.error + ') — opened GitHub to file manually.');
-      else if (r.popupBlocked) showToast('Pop-up blocked — please allow pop-ups to file a report.');
+      self._toastForResult(r, 'Error reported as issue #' + r.number + '.');
     });
   }
 };
@@ -3323,14 +3343,21 @@ var SV = {
               'style="color:var(--accent);text-decoration:underline">issue #' + r.number + '</a>.' +
           '</div>';
       } else {
-        var note = r.error
-          ? 'Auto-post failed (' + esc(r.error) + ') — opened GitHub so you can post manually.'
-          : 'Saved locally. We opened a pre-filled GitHub page so Auston can see it.';
+        var note;
+        if (r.error && r.popupBlocked) {
+          note = 'Auto-post failed (' + esc(r.error) + ') and the GitHub tab was blocked. Click the link below to file it manually.';
+        } else if (r.error) {
+          note = 'Auto-post failed (' + esc(r.error) + ') — opened GitHub so you can post manually.';
+        } else if (r.popupBlocked) {
+          note = 'Saved locally. The GitHub tab was blocked — click the link below to file it.';
+        } else {
+          note = 'Saved locally. We opened a pre-filled GitHub page so Auston can see it.';
+        }
         status.innerHTML =
           '<div class="fb-correct" style="line-height:1.5">' +
             '&#x2705; ' + note + '<br>' +
             '<a href="' + r.url + '" target="_blank" rel="noopener" ' +
-              'style="color:var(--accent);text-decoration:underline;font-size:0.9rem">Open the GitHub page again</a>' +
+              'style="color:var(--accent);text-decoration:underline;font-size:0.9rem">Open the GitHub page</a>' +
           '</div>';
       }
       self.renderHistory();

@@ -52,6 +52,14 @@ export default {
       return json(405, { error: 'POST only' }, cors);
     }
 
+    // Enforce the origin allowlist. CORS headers alone only prevent the
+    // browser from reading the response — a third party can still issue a
+    // blind cross-origin POST and abuse the token. Reject here explicitly.
+    const origin = req.headers.get('Origin') || '';
+    if (!allowedSet(env).has(origin)) {
+      return json(403, { error: 'origin not allowed' }, cors);
+    }
+
     let payload;
     try {
       payload = await req.json();
