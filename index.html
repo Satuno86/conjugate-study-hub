@@ -59,6 +59,10 @@
 
 <!-- Google Identity Services (for WIP Lab Google auth) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Firebase (for WIP Lab email magic link auth + Firestore feedback sync) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js" defer></script>
 
 <!-- CDN Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" defer></script>
@@ -3317,7 +3321,18 @@ var SV = {
     log.push(entry);
     writeJSON(this.feedbackKey, log);
 
-    // Auto-post to GitHub if the worker is configured, otherwise pre-fill a new-issue tab.
+    // Sync to Firestore (silent — local save already succeeded even if this fails)
+    if (LAB._firestore && LAB._firebaseUser) {
+      LAB._firestore.collection('feedback').add({
+        uid: LAB._firebaseUser.uid,
+        email: LAB._firebaseUser.email || '',
+        date: entry.date,
+        topic: topic,
+        message: message
+      }).catch(function() {});
+    }
+
+    // Try to open a pre-filled GitHub issue
     var topicLabels = {
       general: 'General Feedback',
       confusing: 'Confusing/Wrong Question',
@@ -3529,12 +3544,21 @@ var LAB = {
     showToast('Signed out');
   },
 
-  initLocalAuth: function() {
-    var email = '';
-    try { email = localStorage.getItem(this._emailKey) || ''; } catch(e) {}
-    this._currentUser = email ? { email: email } : null;
-    showAppAuth(this._currentUser);
-    this.renderAuthBar();
+  initFirebase: function() {
+    if (typeof firebase === 'undefined') return false;
+    var self = this;
+    try {
+      try { this._firebaseApp = firebase.app('conjugate'); }
+      catch(e) { this._firebaseApp = firebase.initializeApp(this._FIREBASE_CONFIG, 'conjugate'); }
+      this._firebaseAuth = firebase.auth(this._firebaseApp);
+      try { this._firestore = firebase.firestore(this._firebaseApp); } catch(e) { this._firestore = null; }
+      this._firebaseAuth.onAuthStateChanged(function(user) {
+        self._firebaseUser = user || null;
+        showAppAuth(user);
+        self.renderAuthBar();
+      });
+      return true;
+    } catch(e) { return false; }
   },
 
   saveEmailAndContinue: function(inputId) {
