@@ -871,7 +871,7 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
   <div class="header-controls">
     <span id="syncUserBar" class="sync-user-bar" style="display:none"></span>
     <span id="headerUserEmail" style="display:none;font-size:0.75rem;color:var(--text-muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-    <button class="icon-btn" id="headerSignOutBtn" title="Sign out" aria-label="Sign out" style="display:none;font-size:0.85rem" onclick="LAB.signOutLocal()">🚪</button>
+    <button class="icon-btn" id="headerSignOutBtn" title="Sign out" aria-label="Sign out" style="display:none;font-size:0.85rem" onclick="LAB.firebaseSignOut()">🚪</button>
     <button class="icon-btn" id="bugReportBtn" title="Report a problem" aria-label="Report a problem" onclick="BUG.promptAndReport()">&#x1F41B;</button>
     <button class="icon-btn" id="syncBtn" title="Sync across devices" aria-label="Sync across devices">&#x1F504;</button>
     <button class="icon-btn" id="darkModeBtn" title="Toggle dark mode" aria-label="Toggle dark mode">&#x1F319;</button>
@@ -959,7 +959,7 @@ button.quiz-opt.opt-correct { animation: correctPulse 0.6s ease; }
   <div class="login-card">
     <div class="login-icon">⚡</div>
     <h2>Conjugate Method Study Hub</h2>
-    <p class="login-sub">Enter your email to track your progress, earn badges, and sync across devices. (No password — login is being rebuilt.)</p>
+    <p class="login-sub">Sign in to track your progress, earn badges, and sync across devices.</p>
     <div id="login-form-area"></div>
     <div class="login-status" id="login-status"></div>
   </div>
@@ -1088,13 +1088,14 @@ var BUG = {
   },
 
   promptAndReport: function() {
-    var msg = window.prompt('Briefly describe what went wrong (leave blank to just send diagnostics):');
-    if (msg === null) return;
-    var title = (msg && msg.trim()) ? '[Bug] ' + msg.trim().slice(0, 80) : '[Bug] Report from user';
-    var self = this;
-    this.reportIssue(title, msg, null, ['bug', 'user-report']).then(function(r) {
-      self._toastForResult(r, 'Reported! Issue #' + r.number + ' filed.');
-    });
+    // Navigate to Feedback screen pre-set to "bug" category — no blocking prompt()
+    SV.start();
+    setTimeout(function() {
+      var topicEl = document.getElementById('svTopic');
+      if (topicEl) topicEl.value = 'bug';
+      var msgEl = document.getElementById('svMessage');
+      if (msgEl) { msgEl.focus(); }
+    }, 100);
   },
 
   reportError: function(entry) {
@@ -1781,6 +1782,30 @@ function showAppAuth(user) {
     if (headerEmail) { headerEmail.textContent = user.email || ''; headerEmail.style.display = ''; }
     if (headerSignOut) headerSignOut.style.display = '';
     updateStatsBar();
+    // First-time onboarding tour — only after auth resolves and app is visible
+    if (typeof driver !== 'undefined' && !localStorage.getItem('conjugate_onboarded')) {
+      setTimeout(function() {
+        try {
+          var d = driver.js.driver;
+          if (!d) return;
+          var tour = d({
+            showProgress: true,
+            steps: [
+              { element: '#mode-selector', popover: { title: 'Welcome to the Study Hub!', description: 'Choose a study mode to get started. Each card is a different way to study the Conjugate Method.', side: 'top' } },
+              { element: '#fc-mode-btn', popover: { title: 'Flashcard Deck', description: 'Flip through cards to review concepts. Cards you miss will appear more often.', side: 'bottom' } },
+              { element: '#qz-mode-btn', popover: { title: 'Custom Quiz', description: 'Build a quiz by section, question type, and difficulty. Great for targeted practice.', side: 'bottom' } },
+              { element: '#ft-mode-btn', popover: { title: 'Full Practice Test', description: 'Take a complete 105-question practice exam. Scores are tracked on your dashboard.', side: 'bottom' } },
+              { element: '#dash-mode-btn', popover: { title: 'Your Progress', description: 'Track scores, streaks, badges, and see which sections need work.', side: 'bottom' } },
+              { element: '#statsBar', popover: { title: 'Quick Stats', description: 'Your study streak and session count are always visible here.', side: 'bottom' } },
+              { element: '#darkModeBtn', popover: { title: 'Dark Mode', description: 'Toggle between light and dark themes.', side: 'left' } },
+              { element: '#syncBtn', popover: { title: 'Sync Across Devices', description: 'Transfer your progress to another device via a sync link.', side: 'left' } }
+            ],
+            onDestroyed: function() { localStorage.setItem('conjugate_onboarded', '1'); }
+          });
+          tour.drive();
+        } catch(e) {}
+      }, 800);
+    }
   } else {
     if (loginPanel) {
       loginPanel.style.display = 'flex';
@@ -2372,7 +2397,7 @@ var FT = {
       '</div>' +
       '<div class="test-controls">' +
         '<div class="test-score-bar">' +
-          '<span id="ftScoreDisplay">0 / 0</span>' +
+          '<span id="ftScoreDisplay" title="Score appears after you click Score Test">Score: —</span>' +
           '<div class="progress-track"><div class="progress-fill" id="ftProgressFill"></div></div>' +
         '</div>' +
         '<div class="test-btn-group">' +
@@ -2632,7 +2657,7 @@ var FT = {
     document.querySelectorAll('#test-panel input[type="radio"]').forEach(function(r) { r.checked = false; });
     document.querySelectorAll('#test-panel textarea').forEach(function(t) { t.value = ''; });
     document.getElementById('ftResultsPanel').style.display = 'none';
-    document.getElementById('ftScoreDisplay').textContent = '0 / 0';
+    document.getElementById('ftScoreDisplay').textContent = 'Score: —';
     document.getElementById('ftProgressFill').style.width = '0%';
     this.questions = shuffle(QUESTIONS.slice());
     this.render();
@@ -3010,8 +3035,9 @@ var DASH = {
     var counts = Object.keys(dayCounts).map(function(k) { return dayCounts[k]; });
     var maxCount = Math.max(1, counts.length ? Math.max.apply(null, counts) : 1);
 
-    var startDate = new Date(today.getTime() - (days - 1) * dayMs);
-    startDate.setDate(startDate.getDate() - startDate.getDay());
+    // Anchor to the Sunday of the current week so today is always in the last row
+    var endWeekSunday = new Date(today.getTime() - today.getDay() * dayMs);
+    var startDate = new Date(endWeekSunday.getTime() - (weeks - 1) * 7 * dayMs);
 
     var html = '<div style="display:grid;grid-template-columns:20px repeat(' + weeks + ',1fr);gap:3px;max-width:400px;margin:0 auto">';
     var dayLabels = ['','M','','W','','F',''];
@@ -3422,9 +3448,24 @@ var LAB = {
   _enterTime: null,
   _expandedTool: null,
 
-  // ── Local-only email identifier (no real auth — login rebuild pending) ────
+  // ── Local email fallback (kept for compatibility) ────────────────────────
   _emailKey: 'conjugate_user_email',
   _currentUser: null,
+
+  // ── Firebase Auth + Firestore ─────────────────────────────────────────────
+  _firebaseEmailKey: 'conjugate_email_for_signin',
+  _firebaseApp: null,
+  _firebaseAuth: null,
+  _firebaseUser: null,
+  _firestore: null,
+  _FIREBASE_CONFIG: {
+    apiKey:            'AIzaSyAcoEy2nUPxeq76lS0VhNmZiI4M0wiU0Fw',
+    authDomain:        'conjugate-method-study.firebaseapp.com',
+    projectId:         'conjugate-method-study',
+    storageBucket:     'conjugate-method-study.firebasestorage.app',
+    messagingSenderId: '192829169743',
+    appId:             '1:192829169743:web:3faaf7e2e384349dfcca3a'
+  },
 
   getLabData: function() {
     try {
@@ -3561,6 +3602,59 @@ var LAB = {
     } catch(e) { return false; }
   },
 
+  sendMagicLink: function(inputId) {
+    var input = document.getElementById(inputId || 'loginEmailInput');
+    if (!input || !this._firebaseAuth) { showToast('Sign-in unavailable — please reload'); return; }
+    var email = input.value.trim();
+    if (!email || email.indexOf('@') < 0) { showToast('Please enter a valid email'); return; }
+    var btn = input.closest('form') && input.closest('form').querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+    var settings = { url: location.origin + location.pathname, handleCodeInApp: true };
+    localStorage.setItem(this._firebaseEmailKey, email);
+    var self = this;
+    this._firebaseAuth.sendSignInLinkToEmail(email, settings)
+      .then(function() {
+        var status = document.getElementById('login-status');
+        var area = document.getElementById('login-form-area');
+        if (area) area.innerHTML = '';
+        if (status) status.innerHTML = '📬 We sent a link to <strong>' + esc(email) + '</strong>.<br>Check your inbox and click the link to sign in.';
+        showToast('Magic link sent!');
+      })
+      .catch(function(err) {
+        localStorage.removeItem(self._firebaseEmailKey);
+        if (btn) { btn.disabled = false; btn.textContent = 'Send me a link ✉️'; }
+        showToast('Error: ' + (err.message || 'Could not send link'));
+      });
+  },
+
+  checkMagicLinkReturn: function() {
+    if (!this._firebaseAuth) return;
+    try { if (!this._firebaseAuth.isSignInWithEmailLink(window.location.href)) return; }
+    catch(e) { return; }
+    var email = localStorage.getItem(this._firebaseEmailKey);
+    if (!email) {
+      email = window.prompt('Please confirm your email to complete sign-in:');
+      if (!email) return;
+    }
+    var self = this;
+    this._firebaseAuth.signInWithEmailLink(email, window.location.href)
+      .then(function(result) {
+        localStorage.removeItem(self._firebaseEmailKey);
+        window.history.replaceState({}, document.title, location.pathname);
+        showToast('Signed in as ' + esc(result.user.email));
+      })
+      .catch(function(err) {
+        showToast('Sign-in failed: ' + (err.message || 'Invalid or expired link'));
+      });
+  },
+
+  firebaseSignOut: function() {
+    if (!this._firebaseAuth) return;
+    this._firebaseAuth.signOut().then(function() {
+      showToast('Signed out');
+    });
+  },
+
   saveEmailAndContinue: function(inputId) {
     var input = document.getElementById(inputId || 'loginEmailInput');
     if (!input) return;
@@ -3582,19 +3676,19 @@ var LAB = {
   },
 
   _loginFormHTML: function() {
-    return '<form class="login-email-form" onsubmit="event.preventDefault();LAB.saveEmailAndContinue(\'loginEmailInput\')">' +
+    return '<form class="login-email-form" onsubmit="event.preventDefault();LAB.sendMagicLink(\'loginEmailInput\')">' +
       '<input id="loginEmailInput" type="email" placeholder="your@email.com" required autocomplete="email">' +
-      '<button type="submit">Continue ✉️</button>' +
+      '<button type="submit">Send me a link ✉️</button>' +
     '</form>';
   },
 
   renderAuthBar: function() {
     var bar = document.getElementById('lab-auth-bar');
     if (!bar) return;
-    if (this._currentUser && this._currentUser.email) {
+    if (this._firebaseUser && this._firebaseUser.email) {
       bar.innerHTML =
-        '<span>✉️ <strong>' + esc(this._currentUser.email) + '</strong></span>' +
-        '<button class="lab-signout" onclick="LAB.signOutLocal()" style="margin-left:auto">Sign out</button>';
+        '<span>✉️ <strong>' + esc(this._firebaseUser.email) + '</strong></span>' +
+        '<button class="lab-signout" onclick="LAB.firebaseSignOut()" style="margin-left:auto">Sign out</button>';
     } else {
       bar.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted)">Not signed in</span>';
     }
@@ -4206,7 +4300,7 @@ var SYNC = {
       html += '<button class="sync-btn sync-btn-primary" style="margin-top:0.5rem" onclick="SYNC.importFromCode()">Import</button>';
       html += '</div>';
 
-      html += '<div class="sync-divider">account</div>';
+      html += '<div class="sync-divider">or</div>';
 
       // Copy raw code
       html += '<button class="sync-btn sync-btn-secondary" onclick="SYNC.copyCode()">📋 Copy Raw Sync Code</button>';
@@ -4434,35 +4528,18 @@ function initApp() {
     window.addEventListener('offline', updateOnlineStatus);
     updateOnlineStatus();
 
-    // Local-only email entry (real auth temporarily removed — Anna ran into a broken login flow)
-    LAB.initLocalAuth();
-
-    // First-time onboarding tour
-    if (typeof driver !== 'undefined' && !localStorage.getItem('conjugate_onboarded')) {
-      setTimeout(function() {
-        try {
-          var d = driver.js.driver;
-          if (!d) return;
-          var tour = d({
-            showProgress: true,
-            steps: [
-              { element: '#mode-selector', popover: { title: 'Welcome to the Study Hub!', description: 'Choose a study mode below to get started. Each card is a different way to study the Conjugate Method.', side: 'top' } },
-              { element: '#fc-mode-btn', popover: { title: 'Flashcard Deck', description: 'Flip through cards to review concepts. Cards you miss will appear more often thanks to spaced repetition.', side: 'bottom' } },
-              { element: '#qz-mode-btn', popover: { title: 'Custom Quiz', description: 'Build a quiz by section, question type, and difficulty. Great for targeted practice.', side: 'bottom' } },
-              { element: '#ft-mode-btn', popover: { title: 'Full Practice Test', description: 'Take a complete practice exam covering all sections. Scores are tracked on your dashboard.', side: 'bottom' } },
-              { element: '#dash-mode-btn', popover: { title: 'Your Progress', description: 'Track scores, streaks, badges, and see which sections need work.', side: 'bottom' } },
-              { element: '#statsBar', popover: { title: 'Quick Stats', description: 'Your study streak and session count are always visible here.', side: 'bottom' } },
-              { element: '#darkModeBtn', popover: { title: 'Dark Mode', description: 'Toggle between light and dark themes for comfortable studying.', side: 'left' } },
-              { element: '#syncBtn', popover: { title: 'Sync Across Devices', description: 'Transfer your progress to another device via a sync link. Set your name first!', side: 'left' } }
-            ],
-            onDestroyed: function() {
-              localStorage.setItem('conjugate_onboarded', '1');
-            }
-          });
-          tour.drive();
-        } catch(e) {}
-      }, 500);
+    // Firebase magic link auth — gates the app until signed in
+    var fbOk = LAB.initFirebase();
+    LAB.checkMagicLinkReturn();
+    if (!fbOk) {
+      showAppAuth(null);
+      var loginStatus = document.getElementById('login-status');
+      if (loginStatus) loginStatus.textContent = 'Sign-in unavailable — check your connection and reload.';
+    } else {
+      _appAuthTimeout = setTimeout(function() { showAppAuth(null); }, 5000);
     }
+
+    // Onboarding tour fires in showAppAuth after first sign-in, not here
   } catch(err) {
     var errDiv = document.createElement('div');
     errDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:2rem;background:#b00020;color:#fff;z-index:99999;font-family:sans-serif;text-align:center';
