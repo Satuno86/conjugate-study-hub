@@ -3594,6 +3594,11 @@ var LAB = {
       this._firebaseAuth = firebase.auth(this._firebaseApp);
       try { this._firestore = firebase.firestore(this._firebaseApp); } catch(e) { this._firestore = null; }
       this._firebaseAuth.onAuthStateChanged(function(user) {
+        // Auth state resolved — cancel the startup fallback timer so it can't
+        // fire later and log a just-signed-in user back out.
+        if (typeof _appAuthTimeout !== 'undefined' && _appAuthTimeout) {
+          clearTimeout(_appAuthTimeout); _appAuthTimeout = null;
+        }
         self._firebaseUser = user || null;
         showAppAuth(user);
         self.renderAuthBar();
@@ -3644,7 +3649,12 @@ var LAB = {
         showToast('Signed in as ' + esc(result.user.email));
       })
       .catch(function(err) {
-        showToast('Sign-in failed: ' + (err.message || 'Invalid or expired link'));
+        try { console.warn('signInWithEmailLink failed:', err && err.code, err && err.message); } catch(e2) {}
+        // Clear the dead code from the URL so a refresh can't retry it and re-fail.
+        try { window.history.replaceState({}, document.title, location.pathname); } catch(e3) {}
+        var status = document.getElementById('login-status');
+        if (status) status.innerHTML = '&#x26A0;&#xFE0F; That sign-in link had expired or was already used. Request a fresh link below, and open it on this same phone in the same browser.';
+        showToast('Link expired — please request a new one');
       });
   },
 
@@ -4536,7 +4546,13 @@ function initApp() {
       var loginStatus = document.getElementById('login-status');
       if (loginStatus) loginStatus.textContent = 'Sign-in unavailable — check your connection and reload.';
     } else {
-      _appAuthTimeout = setTimeout(function() { showAppAuth(null); }, 5000);
+      // Fallback: if Firebase never reports auth state, reveal the login form.
+      // Guard on _firebaseUser so a sign-in that completes within this window is
+      // NOT logged back out when the timer fires (the "logged out right after
+      // the tutorial" bug). onAuthStateChanged also clears it once auth resolves.
+      _appAuthTimeout = setTimeout(function() {
+        if (!LAB._firebaseUser) showAppAuth(null);
+      }, 5000);
     }
 
     // Onboarding tour fires in showAppAuth after first sign-in, not here
