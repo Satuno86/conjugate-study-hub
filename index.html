@@ -419,7 +419,13 @@ header p { font-size:0.9rem; opacity:0.85; }
 /* =================== RESPONSIVE =================== */
 @media (max-width: 700px) {
   #mode-selector { grid-template-columns:1fr; }
-  header h1 { font-size:1.6rem; }
+  /* Compact header: stop the controls (email + icon buttons) from overlapping
+     the title when it wraps on narrow screens, and reclaim vertical space. */
+  header { padding:0.85rem 1rem 1.1rem; }
+  header h1 { font-size:1.3rem; line-height:1.25; }
+  header p { font-size:0.78rem; }
+  .header-controls { position:static; justify-content:flex-end; margin-bottom:0.5rem; }
+  #headerUserEmail { display:none !important; }
   .fc-card { height:auto; min-height:320px; }
   .fc-front, .fc-back { position:relative; height:auto; min-height:320px; }
   .fc-back { position:absolute; top:0; left:0; width:100%; min-height:320px; }
@@ -1759,6 +1765,9 @@ function showMode(mode) {
     var fcSetup = document.getElementById('fc-setup');
     if (fcSetup) fcSetup.style.display = 'none';
     updateStatsBar();
+    // Returning to the menu: scroll back to the top so the first card
+    // (Flashcards) isn't left off-screen above the fold on mobile.
+    window.scrollTo(0, 0);
   }
 }
 
@@ -1956,7 +1965,30 @@ var FC = {
       '</div>';
     var flipArea = document.getElementById('fcFlipArea');
     if (flipArea) {
-      flipArea.addEventListener('click', function() { FC.flip(); });
+      // Mobile browsers frequently DON'T synthesize a click from a tap here:
+      // the card's 3D-transformed faces (preserve-3d + backface-visibility) and
+      // their momentum-scroll overflow swallow the tap, so the flip never fires
+      // on phones (works fine with a desktop mouse). Handle touch directly —
+      // detect a genuine tap vs a scroll, and suppress the ghost click that
+      // would otherwise double-toggle the flip.
+      var tapX = 0, tapY = 0, tapMoved = false, lastTap = 0;
+      flipArea.addEventListener('touchstart', function(e) {
+        var t = e.changedTouches[0]; tapX = t.clientX; tapY = t.clientY; tapMoved = false;
+      }, { passive: true });
+      flipArea.addEventListener('touchmove', function(e) {
+        var t = e.changedTouches[0];
+        if (Math.abs(t.clientX - tapX) > 10 || Math.abs(t.clientY - tapY) > 10) tapMoved = true;
+      }, { passive: true });
+      flipArea.addEventListener('touchend', function(e) {
+        if (tapMoved) return;            // a scroll, not a tap — leave content scrolling intact
+        lastTap = Date.now();
+        e.preventDefault();              // stop the ghost click from un-flipping it
+        FC.flip();
+      });
+      flipArea.addEventListener('click', function() {
+        if (Date.now() - lastTap < 700) return;   // ignore ghost click right after a handled tap
+        FC.flip();
+      });
     }
   },
 
